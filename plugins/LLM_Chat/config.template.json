@@ -1,0 +1,13 @@
+{
+    "api_key": "填写你的API Key",
+    "model": "deepseek-chat",
+    "api_base": "https://api.deepseek.com/v1",
+    "vision_model": "deepseek-chat",
+    "vision_api_base": "https://api.deepseek.com/v1",
+    "vision_enabled": true,
+    "max_context": 50,
+    "default_persona": "你是由GracyBot开发团队开发的AI助手，名为GracyBot AI。你可以帮助用户进行对话、回答问题、提供建议。你能够记忆上下文，理解用户需求，并根据设定的人设进行回复。你还可以根据用户约定的时间执行定时任务，如早安问候、提醒事项等。请始终保持友好、专业的态度。",
+    "poke_enabled": true,
+    "poke_ai_reply": true,
+    "poke_back": true
+}

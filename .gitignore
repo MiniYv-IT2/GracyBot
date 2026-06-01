@@ -1,0 +1,71 @@
+# ─── 配置文件（含敏感信息） ───
+config.json
+plugins/LLM_Chat/config.json
+plugins/Easysearch/config.json
+plugins/Help_plugin/config.json
+plugins/Xiaoyu_plugin/blocklist/config.json
+
+# ─── 保留模板文件 ───
+!config.template.json
+!plugins/LLM_Chat/config.template.json
+!core/gracy_adapter/onebot/onebot_config.template.json
+
+# ─── Python ───
+__pycache__/
+*.py[cod]
+*.so
+*.egg-info/
+dist/
+build/
+
+# ─── 虚拟环境 ───
+.venv/
+venv/
+env/
+
+# ─── 数据库 ───
+*.db
+*.sqlite
+plugins/LLM_Chat/data/
+
+# ─── 缓存 & 临时文件 ───
+**/data/cache/
+**/temp_*
+debug_commands.txt
+*.backup
+
+# ─── 截图缓存 ───
+plugins/Screenshot/data/image/
+plugins/Easysearch/data/
+plugins/Help_plugin/data/
+plugins/Xiaoyu_plugin/data/
+
+# ─── 日志 ───
+logs/
+*.log
+
+# ─── 热重载 & 缓存 ───
+hotreload.json
+.restart_flag
+
+# ─── IDE ───
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# ─── 系统 ───
+.DS_Store
+Thumbs.db
+
+# ─── 备份文件 ───
+*.zip
+*.bak
+
+# ─── 临时文件 ───
+tmp/
+temp/
+*.tmp
+
+# ─── 前端构建产物 ───
+plugins/GracyUI_plugin/frontend/dist/

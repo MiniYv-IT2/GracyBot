@@ -1,0 +1,7 @@
+# GracyBot（纯HTTP版）依赖清单
+requests==2.31.0
+flask==2.3.3
+psutil==5.9.6
+rarfile==4.2
+Pillow>=10.0.0
+py-cpuinfo>=9.0.0
