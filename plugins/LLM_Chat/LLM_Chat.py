@@ -1,5 +1,4 @@
 from core.config import MASTER_ID
-from core.config_manager import config_manager
 from .core.event_handler import (
     is_master, handle_chat_help, handle_set_openai, handle_set_vision_model,
     handle_add_persona, handle_delete_persona, handle_list_personas,
@@ -14,7 +13,7 @@ scheduler_started = False
 def handle_llm_chat(self_bot, bot, message, user_id, chat_type, permission, log_func):
     global scheduler_started
     if not scheduler_started:
-        start_scheduler(config_manager.get("napcat_http_url", "http://localhost:3000"))
+        start_scheduler()
         scheduler_started = True
     
     raw_msg = message.get("raw_message", "").strip()

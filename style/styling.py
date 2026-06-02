@@ -3,15 +3,7 @@
 """
 
 import json
-import requests
 from typing import Any, Dict, Union
-
-# 导入NapCat API配置（通过 config_manager 动态获取）
-try:
-    from core.config_manager import config_manager
-    NAPCAT_HTTP_URL = config_manager.get("napcat_http_url", "http://localhost:3000")
-except ImportError:
-    NAPCAT_HTTP_URL = "http://localhost:3000"
 
 # 导入颜色配置
 try:

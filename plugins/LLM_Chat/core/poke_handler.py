@@ -1,5 +1,4 @@
 import random
-import requests
 from datetime import datetime
 from .api_handler import load_config, save_config, call_llm_api
 from .database import get_current_persona, get_personas
@@ -14,7 +13,7 @@ POKE_REPLIES = [
     "别闹了,我在工作呢~"
 ]
 
-def handle_poke_event(data, napcat_url, robot_id):
+def handle_poke_event(data, robot_id):
     if data.get("post_type") != "notice" or data.get("notice_type") != "notify" or data.get("sub_type") != "poke":
         return False
     
@@ -40,10 +39,10 @@ def handle_poke_event(data, napcat_url, robot_id):
     if not reply_content:
         reply_content = random.choice(POKE_REPLIES)
     
-    send_message(target_id, reply_content, chat_type, napcat_url)
+    send_message(target_id, reply_content, chat_type)
     
     if config.get("poke_back", True) and random.random() < 0.7:
-        send_poke(user_id, "private", napcat_url)
+        send_poke(user_id)
     
     return True
 
@@ -70,17 +69,18 @@ def generate_poke_reply(chat_id, nickname, chat_type, config):
     except:
         return ""
 
-def send_message(target_id, message, chat_type, napcat_url):
+def send_message(target_id, message, chat_type):
     try:
-        endpoint = "/send_private_msg" if chat_type == "private" else "/send_group_msg"
-        key = "user_id" if chat_type == "private" else "group_id"
-        requests.post(f"{napcat_url}{endpoint}", json={key: int(target_id), "message": message}, timeout=5)
+        from core.gracy_adapter.send import gracy_send_msg
+        from core.gracy_adapter.message import GracyText
+        gracy_send_msg(target_id, GracyText(text=message), chat_type=chat_type)
     except:
         pass
 
-def send_poke(target_id, chat_type, napcat_url):
+def send_poke(target_id):
     try:
-        requests.post(f"{napcat_url}/send_poke", json={"user_id": int(target_id)}, timeout=5)
+        from core.gracy_adapter.send import gracy_call_api
+        gracy_call_api("send_poke", {"user_id": int(target_id)})
     except:
         pass
 

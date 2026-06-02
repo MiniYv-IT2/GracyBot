@@ -99,7 +99,7 @@ def extract_task_from_message(message, chat_id):
 def schedule_task(chat_id, task_time, task_content, persona=None):
     add_scheduled_task(chat_id, task_time, task_content, persona)
 
-def check_and_execute_tasks(napcat_url):
+def check_and_execute_tasks():
     import logging
     logger = logging.getLogger('GracyBot-Scheduler')
     logger.debug("⏰ 定时任务检查器已启动")
@@ -119,7 +119,7 @@ def check_and_execute_tasks(napcat_url):
                     logger.info(f"[定时任务] 执行任务 #{task_id}: {task_time} - {task_content}")
                     disable_task(task_id)
                     executed_tasks.add(task_id)
-                    execute_task(chat_id, task_content, persona, napcat_url)
+                    execute_task(chat_id, task_content, persona)
                     logger.info(f"[定时任务] 任务 #{task_id} 执行完成")
             
             executed_tasks = {tid for tid in executed_tasks if tid < max([t[0] for t in tasks], default=0) - 100}
@@ -129,9 +129,7 @@ def check_and_execute_tasks(napcat_url):
             logger.error(f"[定时任务] 检查异常: {str(e)}")
             time.sleep(30)
 
-def execute_task(chat_id, task_content, persona, napcat_url):
-    import requests
-    
+def execute_task(chat_id, task_content, persona):
     config = load_config()
     personas = get_personas()
     if "默认人设" not in personas:
@@ -155,14 +153,14 @@ def execute_task(chat_id, task_content, persona, napcat_url):
     reply = call_llm_api(messages, config)
     
     chat_type, target_id = chat_id.split("_", 1)
-    endpoint = "/send_private_msg" if chat_type == "private" else "/send_group_msg"
-    key = "user_id" if chat_type == "private" else "group_id"
     
     try:
-        requests.post(f"{napcat_url}{endpoint}", json={key: int(target_id), "message": reply}, timeout=5)
+        from core.gracy_adapter.send import gracy_send_msg
+        from core.gracy_adapter.message import GracyText
+        gracy_send_msg(target_id, GracyText(text=reply), chat_type=chat_type)
     except:
         pass
 
-def start_scheduler(napcat_url):
-    thread = threading.Thread(target=check_and_execute_tasks, args=(napcat_url,), daemon=True)
+def start_scheduler():
+    thread = threading.Thread(target=check_and_execute_tasks, daemon=True)
     thread.start()

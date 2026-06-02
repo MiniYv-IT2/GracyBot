@@ -12,6 +12,5 @@ PLUGIN_META = {
 
 from .core.poke_handler import handle_poke_event
 from .core.scheduler import start_scheduler
-from core.config_manager import config_manager
 
-start_scheduler(config_manager.get("napcat_http_url", "http://localhost:3000"))
+start_scheduler()

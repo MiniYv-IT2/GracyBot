@@ -18,18 +18,9 @@ logger = logging.getLogger("Gracy")
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 try:
     from core.config import BOT_VERSION, ROBOT_ID  # 导入框架版本和配置
-    from core.config_manager import config_manager
-    NAPCAT_HTTP_URL = config_manager.get("napcat_http_url", "http://localhost:3000")
 except ImportError:
     BOT_VERSION = "v2.0.0"  # 默认版本
-    NAPCAT_HTTP_URL = "http://localhost:3000"
     ROBOT_ID = "未知"
-
-# 导入napcat API
-try:
-    from .napcat_api import NapcatAPI
-except ImportError:
-    NapcatAPI = None
 
 # 常量配置
 IMG_WIDTH = 800
