@@ -114,7 +114,7 @@ def handle_help(plugin_manager, gracy_send_msg, data, sender_id, chat_type, perm
         _help_plugin_instance = HelpPlugin()
     
     # 从data中提取原始消息
-    raw_msg = data.get("raw_message", "")
+    raw_msg = data.get("text", "")
     logger.info(f"[帮助插件] 收到消息: '{raw_msg}'")
     
     # 调用插件处理函数
@@ -125,7 +125,7 @@ def handle_help(plugin_manager, gracy_send_msg, data, sender_id, chat_type, perm
     if result:
         # 根据聊天类型确定正确的目标ID
         if chat_type == "group":
-            target_id = data.get("group_id", sender_id)
+            target_id = data.get("raw_data", {}).get("group_id", sender_id)
         else:
             target_id = data.get("target_id", sender_id)
 

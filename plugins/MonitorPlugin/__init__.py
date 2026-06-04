@@ -6,7 +6,7 @@ PLUGIN_META = {
     "name": "MonitorPlugin",
     "version": "1.0.0",
     "description": "查看系统状态和性能指标的监控插件",
-    "commands": ["系统状态", "监控", "性能", "health", "status"],
+    "commands": ["/状态", "/监控", "/性能", "/健康", "/插件状态", "/系统状态"],
     "handler": "handle_monitor",
     "chat_type": ["private", "group"],
     "permission": "all",  # 所有用户可使用

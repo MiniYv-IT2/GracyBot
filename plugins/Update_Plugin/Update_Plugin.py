@@ -596,7 +596,7 @@ def handle_update_plugin(self_bot, bot, message, user_id, chat_type, permission,
             return True
         
         # 获取消息内容
-        message_content = message.get('raw_message', '')
+        message_content = message.get('text', '')
         logger.info(f"[Update_Plugin] 收到消息内容: {message_content}")
         
         # 处理 /系统更新 命令

@@ -17,11 +17,7 @@ except ImportError:
 
 
 class StylingManager:
-    """样式管理器"""
-    
     def __init__(self):
-
-        
         # 上下文键映射
         self.context_key_mapping = {
             'self_id': '机器人ID', 'user_id': '用户ID', 'time': '消息时间',
@@ -73,24 +69,12 @@ class StylingManager:
         }
     
     def _sanitize_cq_codes(self, text: str) -> str:
-        """简化CQ码显示，避免超长URL"""
-        import re
-        text = re.sub(r'\[CQ:image,[^\]]+\]', '[图片]', text)
-        text = re.sub(r'\[CQ:face,[^\]]+\]', '[表情]', text)
-        text = re.sub(r'\[CQ:at,qq=(\d+)[^\]]*\]', r'[@\1]', text)
-        text = re.sub(r'\[CQ:reply,[^\]]+\]', '[回复]', text)
-        text = re.sub(r'\[CQ:record,[^\]]+\]', '[语音]', text)
-        text = re.sub(r'\[CQ:video,[^\]]+\]', '[视频]', text)
-        text = re.sub(r'\[CQ:file,[^\]]+\]', '[文件]', text)
-        text = re.sub(r'\[CQ:share,[^\]]+\]', '[链接分享]', text)
-        text = re.sub(r'\[CQ:json,[^\]]+\]', '[JSON卡片]', text)
-        text = re.sub(r'\[CQ:markdown,[^\]]+\]', '[卡片消息]', text)
-        text = re.sub(r'\[CQ:forward,[^\]]+\]', '[合并转发]', text)
-        text = re.sub(r'\[CQ:poke,[^\]]+\]', '[戳一戳]', text)
-        text = re.sub(r'\[CQ:dice,[^\]]+\]', '[骰子]', text)
-        text = re.sub(r'\[CQ:rps,[^\]]+\]', '[猜拳]', text)
-        text = re.sub(r'\[CQ:contact,[^\]]+\]', '[推荐好友]', text)
-        return text
+        """简化CQ码显示——委托到 OneBot 适配器处理"""
+        try:
+            from core.gracy_adapter.onebot.sanitize import sanitize
+            return sanitize(text)
+        except ImportError:
+            return text
 
     def format_context_to_chinese(self, context: Dict[str, Any]) -> str:
         """格式化上下文字典"""
@@ -217,7 +201,7 @@ class StylingManager:
 
     
     def _encrypt_user_id(self, user_id: Union[int, str]) -> str:
-        """加密用户ID为'用户****后4位'格式"""
+        """加密用户ID"""
         if isinstance(user_id, (int, str)) and str(user_id).isdigit():
             id_str = str(user_id)
             if len(id_str) >= 4:
@@ -252,5 +236,5 @@ def replace_message_keywords(message: str) -> str:
     return styling_manager.replace_message_keywords(message)
 
 def encrypt_user_id(user_id: Union[int, str]) -> str:
-    """加密用户ID为'用户****后4位'格式"""
+    """加密用户ID"""
     return styling_manager._encrypt_user_id(user_id)

@@ -6,7 +6,7 @@ PLUGIN_META = {
     "name": "示例插件",
     "version": "1.0.0",  # 插件版本号
     "description": "展示版本控制和依赖管理功能的示例插件",
-    "commands": ["示例", "version", "示例依赖"],
+    "commands": ["/示例", "/version", "/示例依赖"],
     "handler": "handle_example",
     "chat_type": ["private", "group"],
     "permission": "all",
@@ -19,9 +19,9 @@ PLUGIN_META = {
         # {"name": "基础插件", "min_version": "1.2.0"}
     ],
     "command_descriptions": {
-        "示例": "查看示例插件基本功能演示",
-        "version": "查看所有已加载插件的版本与依赖信息",
-        "示例依赖": "了解插件依赖管理功能的使用说明"
+        "/示例": "查看示例插件基本功能演示",
+        "/version": "查看所有已加载插件的版本与依赖信息",
+        "/示例依赖": "了解插件依赖管理功能的使用说明"
 
     }
 }

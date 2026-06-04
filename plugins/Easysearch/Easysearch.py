@@ -38,8 +38,8 @@ def _extract_browse(raw_msg: str):
 
 
 def handle_easysearch(self_bot, bot, message, user_id, chat_type, permission, log_func):
-    raw_msg = message.get("raw_message", "").strip()
-    target_id = str(message.get("group_id") if chat_type == "group" else user_id)
+    raw_msg = message.get("text", "").strip()
+    target_id = str(message.get("raw_data", {}).get("group_id") if chat_type == "group" else user_id)
 
     engine, query = _extract_search(raw_msg)
     if query is not None:

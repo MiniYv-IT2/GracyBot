@@ -16,8 +16,8 @@ _latest_screenshot = None
 
 def handle_screenshot(self_bot, bot, message, user_id, chat_type, permission, log_func):
     global _latest_screenshot
-    raw_msg = message.get("raw_message", "").strip()
-    target_id = str(message.get("group_id") if chat_type == "group" else user_id)
+    raw_msg = message.get("text", "").strip()
+    target_id = str(message.get("raw_data", {}).get("group_id") if chat_type == "group" else user_id)
 
     if str(user_id) != str(MASTER_ID):
         gracy_send_msg(target_id, GracyText(text="Permission denied."), chat_type=chat_type)

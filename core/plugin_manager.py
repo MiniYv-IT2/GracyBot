@@ -60,9 +60,7 @@ class PluginManager:
         return 0
     
     def check_circular_dependency(self, plugin_name: str, visited: Set[str], path: List[str]) -> bool:
-        """检测循环依赖
-        使用深度优先搜索算法检测循环依赖
-        """
+        """检测循环依赖"""
         visited.add(plugin_name)
         path.append(plugin_name)
         
@@ -72,7 +70,6 @@ class PluginManager:
                     if self.check_circular_dependency(dependency, visited, path):
                         return True
                 elif dependency in path:
-                    # 找到循环依赖
                     cycle_start_index = path.index(dependency)
                     cycle = " -> ".join(path[cycle_start_index:]) + " -> " + dependency
                     logger.error(f"❌ 检测到循环依赖: {cycle}")
@@ -82,9 +79,7 @@ class PluginManager:
         return False
     
     def check_plugin_dependencies(self, plugin_name: str, dependencies: List[Dict]) -> Tuple[bool, str]:
-        """检查插件依赖是否满足
-        返回 (是否满足, 错误信息)
-        """
+        """检查插件依赖是否满足"""
         if not dependencies:
             return True, ""
         
@@ -156,15 +151,12 @@ class PluginManager:
         """
         plugins_meta = {}
         
-        # 校验插件目录是否存在
         if not os.path.exists(plugin_dir):
             logger.error(f"❌ 插件目录 {plugin_dir} 不存在，跳过插件加载")
             return plugins_meta
 
-        # 遍历插件目录下所有子目录（每个子目录对应一个插件）
         for plugin_name in os.listdir(plugin_dir):
             plugin_path = os.path.join(plugin_dir, plugin_name)
-            # 仅处理目录，跳过文件
             if not os.path.isdir(plugin_path):
                 logger.debug(f"⚠️ 跳过非目录项：{plugin_name}（不是插件目录）")
                 continue
@@ -183,13 +175,11 @@ class PluginManager:
                 plugin_meta_module = importlib.util.module_from_spec(spec)
                 spec.loader.exec_module(plugin_meta_module)
 
-                # 校验元信息是否存在且完整
                 if not hasattr(plugin_meta_module, "PLUGIN_META"):
                     logger.error(f"❌ 插件 {plugin_name} 的 __init__.py 中缺失 PLUGIN_META 元信息，跳过加载")
                     continue
                 
                 plugin_meta = plugin_meta_module.PLUGIN_META
-                # 必选元信息字段（缺失则视为非法插件）
                 required_meta_fields = ["name", "commands", "handler", "chat_type", "permission"]
                 if not all(field in plugin_meta for field in required_meta_fields):
                     logger.error(f"❌ 插件 {plugin_name} 元信息缺失必选字段！需包含：{required_meta_fields}，跳过加载")
@@ -222,20 +212,17 @@ class PluginManager:
         return plugins_meta
     
     def _load_plugins_by_dependency(self, plugins_meta: Dict[str, Dict], plugin_dir: str) -> None:
-        """第二阶段：按依赖顺序加载插件核心功能"""
-        # 使用深度优先搜索按依赖顺序加载插件
+        """按依赖顺序加载插件核心功能"""
         loaded = set()
         
         def load_plugin(plugin_name: str):
             if plugin_name in loaded:
                 return True
             
-            # 检查插件是否存在
             if plugin_name not in plugins_meta:
                 logger.error(f"❌ 依赖插件 '{plugin_name}' 不存在")
                 return False
             
-            # 先加载所有依赖
             dependencies = plugins_meta[plugin_name].get("dependencies", [])
             for dep in dependencies:
                 dep_name = dep["name"]
@@ -243,25 +230,20 @@ class PluginManager:
                     if not load_plugin(dep_name):
                         return False
             
-            # 检查依赖是否满足
             plugin_meta = plugins_meta[plugin_name]
             dependencies_ok, error_msg = self.check_plugin_dependencies(plugin_name, dependencies)
             if not dependencies_ok:
                 logger.error(f"❌ 插件 '{plugin_name}' 依赖检查失败: {error_msg}")
                 return False
             
-            # 加载插件核心功能
             try:
                 plugin_path = plugin_meta["plugin_path"]
                 core_file_name = f"{plugin_name}.py"
                 core_module_path = os.path.join(plugin_path, core_file_name)
                 
-                # 校验核心文件是否存在
                 if not os.path.exists(core_module_path):
                     logger.error(f"❌ 插件 {plugin_name} 缺失核心文件 {core_file_name}，跳过加载")
                     return False
-                
-                # 导入核心模块
                 core_module_name = f"plugins.{plugin_name}.{core_file_name[:-3]}"
                 core_spec = importlib.util.spec_from_file_location(
                     name=core_module_name,
@@ -270,7 +252,6 @@ class PluginManager:
                 plugin_core_module = importlib.util.module_from_spec(core_spec)
                 core_spec.loader.exec_module(plugin_core_module)
                 
-                # 校验核心处理函数
                 handler_func_name = plugin_meta["handler"]
                 if not hasattr(plugin_core_module, handler_func_name):
                     logger.error(f"❌ 插件 {plugin_name} 中缺失核心处理函数 {handler_func_name}，跳过加载")
@@ -281,7 +262,6 @@ class PluginManager:
                     logger.error(f"❌ 插件 {plugin_name} 中 {handler_func_name} 不是可调用函数，跳过加载")
                     return False
                 
-                # 注册插件
                 registered_plugin = {
                     **plugin_meta,
                     "handler_func": handler_func,
@@ -302,31 +282,32 @@ class PluginManager:
                 logger.error(f"❌ 加载插件 {plugin_name} 时发生异常：{str(e)}", exc_info=True)
                 return False
         
-        # 加载所有未被依赖的插件（起点）
         for plugin_name in plugins_meta:
             if plugin_name not in loaded:
                 load_plugin(plugin_name)
 
     def get_matched_plugin(self, raw_msg: str, chat_type: str, sender_id: str, is_at_bot: bool) -> Optional[Dict]:
-        """公共方法：根据用户消息匹配对应的插件（供handler调用，优化匹配逻辑）"""
+        """根据用户消息匹配对应的插件"""
         logger.debug(f"\n[插件匹配] 开始匹配指令：{raw_msg[:20]}... | 聊天类型：{chat_type} | 发送者ID：{sender_id} | @机器人：{is_at_bot}")
         logger.debug(f"[插件匹配] 当前注册池插件数量：{len(PLUGIN_REGISTRY)}")
         
         for plugin in PLUGIN_REGISTRY:
-            # 1. 校验聊天场景（私聊/群聊）是否匹配
             if chat_type not in plugin["chat_type"]:
                 logger.debug(f"[插件匹配] 插件 {plugin['name']} v{plugin.get('version', 'N/A')} 场景不匹配（支持：{plugin['chat_type']}，当前：{chat_type}），跳过")
                 continue
-            # 2. 校验权限（仅主人可用的插件需过滤非主人用户）
             if plugin["permission"] == "master" and str(sender_id) != str(MASTER_ID):
                 logger.debug(f"[插件匹配] 插件 {plugin['name']} v{plugin.get('version', 'N/A')} 权限不足（仅主人可用），跳过")
                 continue
-            # 3. 群聊场景需@机器人的插件，校验是否@机器人
             if chat_type == "group" and plugin.get("is_at_required", False) and not is_at_bot:
                 logger.debug(f"[插件匹配] 插件 {plugin['name']} v{plugin.get('version', 'N/A')} 群聊需@机器人，当前未@，跳过")
                 continue
-            # 4. 指令匹配（消息包含插件任一触发指令即匹配，优化匹配逻辑）
-            matched_cmd = [cmd for cmd in plugin["commands"] if cmd in raw_msg]
+            def _match_cmd(cmd: str, msg: str) -> bool:
+                """// 只在独立出现时匹配"""
+                if cmd == "//":
+                    import re
+                    return bool(re.search(r'(?:^|\s)//', msg))
+                return cmd in msg
+            matched_cmd = [cmd for cmd in plugin["commands"] if _match_cmd(cmd, raw_msg)]
             if matched_cmd:
                 logger.debug(f"[插件匹配] 插件 {plugin['name']} v{plugin.get('version', 'N/A')} 匹配成功！触发指令：{matched_cmd}")
                 return plugin
@@ -335,9 +316,7 @@ class PluginManager:
         return None
     
     def get_plugin_metadata(self, plugin_name: str) -> Optional[Dict]:
-        """获取插件的元信息
-        返回插件的详细元数据，包括版本、依赖等信息
-        """
+        """获取插件的元信息"""
         for plugin in PLUGIN_REGISTRY:
             if plugin.get('name') == plugin_name:
                 # 返回插件的完整元信息
@@ -357,10 +336,7 @@ class PluginManager:
         return [self.get_plugin_metadata(plugin['name']) for plugin in PLUGIN_REGISTRY]
     
     def reload_plugin(self, plugin_name: str) -> bool:
-        """重载指定的插件
-        返回是否重载成功
-        """
-        # 找到插件的路径
+        """重载指定的插件"""
         plugin_path = None
         for plugin in PLUGIN_REGISTRY:
             if plugin.get('name') == plugin_name:
@@ -379,9 +355,6 @@ class PluginManager:
             
             logger.info(f"🔄 开始重载插件 {plugin_name}")
             
-            # 重新扫描并加载该插件
-            # 由于插件可能有依赖，这里简单实现为重新初始化整个插件系统
-            # 在实际应用中可以实现更细粒度的重载
             self._initialized = False
             self.init(os.path.dirname(plugin_path))
             
@@ -393,14 +366,11 @@ class PluginManager:
             return False
     
     def shutdown(self):
-        """关闭插件管理器，清理资源
-        调用所有插件的on_shutdown方法（如果存在）
-        """
+        """关闭插件管理器，清理资源"""
         logger.info("🔒 开始关闭插件管理器")
         
         for plugin in PLUGIN_REGISTRY:
             try:
-                # 检查插件是否有on_shutdown方法
                 core_module = plugin.get('core_module')
                 if core_module and hasattr(core_module, 'on_shutdown'):
                     shutdown_func = getattr(core_module, 'on_shutdown')
@@ -410,7 +380,6 @@ class PluginManager:
             except Exception as e:
                 logger.error(f"调用插件 {plugin['name']} 的 on_shutdown 方法时出错：{str(e)}")
         
-        # 清空注册池
         PLUGIN_REGISTRY.clear()
         LOADED_PLUGIN_VERSIONS.clear()
         DEPENDENCY_GRAPH.clear()
@@ -418,5 +387,4 @@ class PluginManager:
         self._initialized = False
         logger.info("✅ 插件管理器已关闭")
 
-# 全局单例插件管理器实例（供外部模块直接导入使用）
 plugin_manager = PluginManager()

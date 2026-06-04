@@ -18,6 +18,7 @@ from core.config import ROBOT_ID, CALLBACK_PORT, MASTER_ID, BOT_VERSION
 from core.handler import callback_base, dispatch_plugin_cmd
 from core.plugin_manager import plugin_manager, PLUGIN_REGISTRY
 from core.utils import logger, logger_manager  # 复用utils全局日志和消息工具
+from core.gracy_adapter.onebot.sanitize import is_cq_raw_message
 from core.gracy_adapter.send import gracy_send_msg
 from core.gracy_adapter.message import GracyText
 from core.config_manager import config_manager
@@ -33,16 +34,14 @@ for _log_name in ('werkzeug', 'werkzeug.serving'):
     _wk_log.handlers = []
 
 
-# 回调接口（增强错误处理版本）
 @app.route('/callback', methods=['POST'])
 def callback():
     context = {
         'client_ip': request.remote_addr,
-        'request_id': str(time.time())[-6:],  # 简单的请求ID生成
+        'request_id': str(time.time())[-6:],
         'path': request.path
     }
 
-    # 记录收到的消息
     monitor_manager.record_message_received()
 
     start_time = time.time()
@@ -116,7 +115,7 @@ def callback():
                     raw_msg = parsed_data.get("raw_msg", "")
                     # 只在消息以已注册指令开头时记录失败（白名单 + startswith，避免 CQ 码误触）
                     # 跳过 CQ 码（系统消息）和 // 前缀（AI 聊天触发器）
-                    if not raw_msg.startswith("[CQ:"):
+                    if not is_cq_raw_message(raw_msg):
                         builtin_cmds = {"/关机", "/重启", "/开机", "/关于"}
                         all_cmds = set(builtin_cmds)
                         for p in PLUGIN_REGISTRY:
@@ -140,14 +139,11 @@ def callback():
             return parsed_data
 
     except Exception as e:
-        # 终极异常捕获，确保服务不崩溃
         error_msg = f"未预期的异常: {str(e)}"
-        # 记录完整堆栈信息
         stack_trace = traceback.format_exc()
         logger_manager.log_with_context(logger, logging.CRITICAL, error_msg, context,
                                         extra={"stack_trace": stack_trace})
 
-        # 向管理员发送错误通知
         try:
             error_notify = f"🚨 机器人异常警报 🚨\n"
             error_notify += f"时间: {time.strftime('%Y-%m-%d %H:%M:%S')}\n"
@@ -155,15 +151,12 @@ def callback():
             error_notify += f"类型: {type(e).__name__}\n"
             gracy_send_msg(MASTER_ID, GracyText(text=error_notify), chat_type="private")
         except:
-            # 确保通知失败不会影响响应
             pass
 
-        # 返回安全的错误信息
         return jsonify({"retcode": 500, "msg": "系统维护中，请稍后再试"}), 500
 
 
 def setup_error_handlers():
-    """设置全局错误处理器"""
 
     @app.errorhandler(404)
     def not_found(error):
@@ -199,8 +192,6 @@ def setup_error_handlers():
                                         f'未处理的异常: {str(error)}',
                                         context,
                                         extra={"stack_trace": stack_trace})
-
-        # 返回统一的错误响应
         return jsonify({"retcode": 500, "msg": "服务器内部错误"}), 500
 
 
@@ -232,7 +223,6 @@ def safe_shutdown(signum=None, frame=None):
         logger_manager.log_with_context(logger, logging.ERROR, f"❌ 关闭监控管理器异常: {str(e)}")
 
     logger_manager.log_with_context(logger, logging.INFO, "✅ 服务已安全关闭")
-    # 使用 os._exit 强制终止进程（sys.exit 在子线程中只退出当前线程，Flask 主线程不受影响）
     os._exit(0)
 
 
@@ -356,13 +346,7 @@ def _interactive_connection_setup():
 
 
 def _parse_cli_args():
-    """解析命令行参数，通过环境变量传递给 config_manager
-
-    支持:
-        -m / --mode  连接模式 (http, http_reverse, ws_forward, ws_reverse)
-        -t / --token OneBot access_token（仅 WS 模式有效）
-        -h / --help  帮助
-    """
+    """解析命令行参数，通过环境变量传递给 config_manager"""
     args = sys.argv[1:]
     i = 0
     while i < len(args):
@@ -555,7 +539,7 @@ def run_bot():
                                 logger.info('请求处理成功')
                             else:
                                 raw_msg = parsed.get("raw_msg", "")
-                                if not raw_msg.startswith("[CQ:"):
+                                if not is_cq_raw_message(raw_msg):
                                     builtin_cmds = {"/关机", "/重启", "/开机", "/关于"}
                                     all_cmds = set(builtin_cmds)
                                     for p in PLUGIN_REGISTRY:
@@ -570,7 +554,6 @@ def run_bot():
         ws_adapter.start(on_ws_event)
         logger.info(f"✅ WebSocket {'正向连接' if ws_mode == 'forward' else '反向监听'}已启动")
 
-        # 保持主线程存活
         try:
             while True:
                 time.sleep(1)

@@ -124,8 +124,8 @@ def _update_config_json(key: str, value: str) -> bool:
 # ═══════════════ 主处理函数 ═══════════════
 def handle_xiaoyu(plugin_manager, gracy_send_msg, data, sender_id, chat_type, permission, log_func):
     """小禹插件入口 — 7参数标准签名"""
-    raw_msg = data.get("raw_message", "").strip() if isinstance(data, dict) else str(data)
-    target_id = str(data.get("user_id" if chat_type == "private" else "group_id", sender_id))
+    raw_msg = data.get("text", "").strip() if isinstance(data, dict) else str(data)
+    target_id = str(data.get("raw_data", {}).get("user_id" if chat_type == "private" else "group_id", sender_id))
 
     def _reply(text: str):
         """统一回复：通过 GracyAdapter 适配层发送消息"""

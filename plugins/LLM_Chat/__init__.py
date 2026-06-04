@@ -1,6 +1,6 @@
 PLUGIN_META = {
     "name": "LLM_Chat",
-    "commands": ["//", "/chat帮助", "/设置OpenAI", "/新增人设", "/删除人设", "/查看人设列表", "/切换人设", "/清除记忆", "/persona", "/+persona", "/-persona", "/persona=", "/戳一戳开关", "/戳一戳状态", "/设置上下文数量", "/查看配置"],
+    "commands": ["//", "/chat帮助", "/设置OpenAI", "/设置视觉模型", "/视觉模型开关", "/新增人设", "/删除人设", "/查看人设列表", "/切换人设", "/清除记忆", "/persona", "/+persona", "/-persona", "/persona=", "/戳一戳开关", "/戳一戳状态", "/设置上下文数量", "/查看配置"],
     "handler": "handle_llm_chat",
     "chat_type": ["private", "group"],
     "permission": "all",

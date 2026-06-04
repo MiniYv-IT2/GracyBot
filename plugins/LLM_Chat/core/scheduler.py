@@ -6,7 +6,6 @@ from .database import add_scheduled_task, get_scheduled_tasks, disable_task, get
 from .api_handler import call_llm_api, load_config
 
 def parse_time_expression(text):
-    # 相对时间模式（需要先匹配，因为更具体）
     relative_patterns = [
         (r'(?:过|再过)?(\d+|[一二两三四五六七八九十]+)分钟(?:后|以后)?', lambda m: calculate_relative_time(parse_chinese_number(m.group(1)), 'minute')),
         (r'(?:过|再过)?(\d+|[一二两三四五六七八九十]+)小时(?:后|以后)?', lambda m: calculate_relative_time(parse_chinese_number(m.group(1)), 'hour')),
@@ -19,7 +18,6 @@ def parse_time_expression(text):
         if match:
             return calculator(match)
     
-    # 绝对时间模式
     absolute_patterns = [
         (r'(\d+)点(\d+)?分?', lambda m: f"{m.group(1).zfill(2)}:{m.group(2).zfill(2) if m.group(2) else '00'}"),
         (r'早上(\d+)点', lambda m: f"{m.group(1).zfill(2)}:00"),

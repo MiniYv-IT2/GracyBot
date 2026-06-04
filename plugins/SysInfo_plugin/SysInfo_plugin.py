@@ -464,12 +464,12 @@ def handle_status_cmd(target: str, chat_type: str):
 # 原有核心处理函数（完全保留，不做任何修改）
 def handle_sysinfo_plugin(self_bot, bot, message, user_id, chat_type, permission, logger):
     # 1. 提取并清理消息内容（过滤空格、@机器人符号，兼容群聊格式）
-    raw_msg = message.get("raw_message", "").strip()
+    raw_msg = message.get("text", "").strip()
     msg_content = raw_msg.replace(" ", "").replace("　", "").replace(f"@1972693082", "").replace(f"@机器人", "").strip()
     
     # 2. 确定目标ID（群聊=群ID，私聊=用户ID，避免发送失败）
     if chat_type == "group":
-        target_id = message.get("group_id")
+        target_id = message.get("raw_data", {}).get("group_id")
     else:
         target_id = user_id
     target_id = str(target_id) if target_id else user_id  # 容错处理，防止空值

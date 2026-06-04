@@ -21,7 +21,8 @@ def handle_chat_help(bot, target_id, chat_type):
 
 主人专属命令：
 /设置OpenAI API_KEY 模型 地址
-/设置视觉模型 模型 API地址
+/设置视觉模型 模型 API_KEY 地址
+/视觉模型开关 开启/关闭
 /新增人设 名称 内容
 /删除人设 名称
 /查看人设列表
@@ -52,15 +53,30 @@ def handle_set_openai(bot, target_id, chat_type, raw_msg):
 
 
 def handle_set_vision_model(bot, target_id, chat_type, raw_msg):
-    parts = raw_msg.split(maxsplit=2)
-    if len(parts) == 3:
-        _, model, api_base = parts
+    parts = raw_msg.split(maxsplit=3)
+    if len(parts) == 4:
+        _, model, api_key, api_base = parts
         config = load_config()
-        config.update({"vision_model": model, "vision_api_base": api_base, "vision_enabled": True})
+        config.update({"vision_model": model, "vision_api_key": api_key, "vision_api_base": api_base, "vision_enabled": True})
         save_config(config)
-        bot(target_id, f"✅ 视觉模型已设置\n• 模型：{model}\n• 地址：{api_base}", chat_type=chat_type)
+        bot(target_id, f"✅ 视觉模型已设置\n• 模型：{model}\n• API Key：{api_key[:10]}...\n• 地址：{api_base}", chat_type=chat_type)
     else:
-        bot(target_id, "❌ 格式错误：/设置视觉模型 模型 API地址", chat_type=chat_type)
+        bot(target_id, "❌ 格式错误：/设置视觉模型 模型 API_KEY API地址", chat_type=chat_type)
+
+
+def handle_vision_switch(bot, target_id, chat_type, raw_msg):
+    """视觉模型开关"""
+    parts = raw_msg.split(maxsplit=1)
+    if len(parts) == 2:
+        action = parts[1].strip()
+        enabled = action in ["开启", "打开", "on", "enable", "true"]
+        config = load_config()
+        config["vision_enabled"] = enabled
+        save_config(config)
+        status = "已开启" if enabled else "已关闭"
+        bot(target_id, f"✅ 视觉模型{status}", chat_type=chat_type)
+    else:
+        bot(target_id, "❌ 格式：/视觉模型开关 开启/关闭", chat_type=chat_type)
 
 def handle_add_persona(bot, target_id, chat_type, raw_msg):
     parts = raw_msg.split(maxsplit=2)
@@ -145,7 +161,7 @@ def handle_view_config(bot, target_id, chat_type, current_chat_id):
     
     msg = f"""⚙️ 当前配置：
 • 模型：{config['model']}
-• 视觉模型：{config.get('vision_model', config['model'])} {'(已启用)' if config.get('vision_enabled', True) else '(已禁用)'}
+• 视觉模型：{config.get('vision_model', config['model'])} {'(已启用)' if config.get('vision_enabled', False) else '(已禁用)'}
 • 当前人设：{current_persona}
 • 上下文数量：{max_context}
 • 戳一戳：{'开启' if config.get('poke_enabled', True) else '关闭'}"""
@@ -181,20 +197,17 @@ def handle_ai_chat(bot, target_id, chat_type, message, user_id, nickname, curren
         content_parts = []
         for url in image_urls:
             content_parts.append({"type": "image_url", "image_url": {"url": url}})
-        text_only = re.sub(r'\[CQ:image,[^\]]*\]', '', message).strip()
-        content_parts.append({"type": "text", "text": text_only if text_only else "请描述这张图片"})
+        content_parts.append({"type": "text", "text": message if message else "请描述这张图片"})
         messages.append({"role": "user", "content": content_parts})
     else:
         messages.append({"role": "user", "content": message})
     
     reply = call_llm_api(messages, config)
 
-    db_user_msg = re.sub(r'\[CQ:image,[^\]]*\]', '[图片]', message).strip()
-    if not db_user_msg:
-        db_user_msg = "[图片]"
+    db_user_msg = "[图片]" if image_urls else message
     add_message(current_chat_id, "user", db_user_msg)
     add_message(current_chat_id, "assistant", reply)
-    
+
     bot(target_id, reply, chat_type=chat_type)
 
 
@@ -202,11 +215,15 @@ def _extract_image_urls(raw_event) -> list:
     if raw_event is None:
         return []
     files = []
-    if isinstance(raw_event, dict):
-        raw_message = raw_event.get("raw_message", "")
+    
+    if isinstance(raw_event, dict) and raw_event.get("images"):
+        raw_imgs = raw_event["images"]
+        if isinstance(raw_imgs, list):
+            files = [f for f in raw_imgs if f]
+    
+    # 兼容旧路径：从 raw_data["message"] 数组取图片
+    if not files and isinstance(raw_event, dict):
         msg_array = raw_event.get("message", [])
-        for match in re.finditer(r'\[CQ:image,[^\]]*file=([^,\]]+)', raw_message):
-            files.append(match.group(1))
         if isinstance(msg_array, list):
             for seg in msg_array:
                 if isinstance(seg, dict) and seg.get("type") == "image":
@@ -214,6 +231,7 @@ def _extract_image_urls(raw_event) -> list:
                     fid = data.get("file", "")
                     if fid and fid not in files:
                         files.append(fid)
+    
     return [_fetch_via_napcat(f) for f in files if f]
 
 

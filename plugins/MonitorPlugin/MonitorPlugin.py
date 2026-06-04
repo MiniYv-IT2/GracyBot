@@ -23,12 +23,12 @@ def handle_monitor(*args, **kwargs):
         plugin_logger = args[6] if len(args) > 6 else logger
         
         # 从parsed_data中获取raw_msg
-        raw_msg = parsed_data.get('raw_message', '')
+        raw_msg = parsed_data.get('text', '')
         
-        # 设置target_id
+        # 设置target_id（必须放在try外，防止异常时未定义）
         target_id = sender_id
         if chat_type == 'group':
-            target_id = parsed_data.get('group_id', sender_id)
+            target_id = parsed_data.get('raw_data', {}).get('group_id', sender_id)
         
         # 确保raw_msg是字符串
         if not isinstance(raw_msg, str):

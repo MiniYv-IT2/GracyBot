@@ -1,0 +1,7 @@
+
+{
+    "default_expire_minutes": 0,
+    "auto_cleanup_interval": 60,
+    "max_context_messages": 50,
+    "shared_group_session": false
+}
