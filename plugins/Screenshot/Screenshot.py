@@ -22,9 +22,11 @@ def _check_deps():
     if missing:
         logger.info("[插件执行] [Screenshot] Installing dependencies: %s", ", ".join(missing))
         for pkg in missing:
-            subprocess.check_call(
+            subprocess.run(
                 [sys.executable, "-m", "pip", "install", pkg],
-                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                timeout=60
             )
         logger.info("[插件执行] [Screenshot] Dependencies installed successfully")
     with open(STATE_FILE, "w") as f:

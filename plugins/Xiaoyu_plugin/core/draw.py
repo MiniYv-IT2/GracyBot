@@ -155,8 +155,8 @@ class XiaoyuHelpDrawer:
         """从 PLUGIN_REGISTRY 读取小禹插件的命令列表（每次调用都重新读，自动跟随热重载更新）"""
         result: Dict[str, List[str]] = {}
         try:
-            from core.plugin_manager import PLUGIN_REGISTRY
-            for plugin in PLUGIN_REGISTRY:
+            from core.plugin_manager import plugin_manager
+            for plugin in plugin_manager.registry:
                 if plugin.get("name") == "小禹插件":
                     cmds = plugin.get("commands", [])
                     descs = plugin.get("command_descriptions", {})

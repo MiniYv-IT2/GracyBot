@@ -9,7 +9,7 @@
   <img src="https://img.shields.io/badge/Platform-Windows%20|%20Linux%20|%20macOS-lightgrey" alt="Platform" />
   <img src="https://img.shields.io/badge/Status-Active-brightgreen" alt="Status" />
   <img src="https://img.shields.io/badge/License-MIT-green" alt="License" />
-  <img src="https://img.shields.io/badge/Version-v1.9.2-orange" alt="Version" />
+  <img src="https://img.shields.io/badge/Version-v1.9.25-orange" alt="Version" />
 </p>
 
 <p align="center">
@@ -18,7 +18,7 @@
 
 > 想给自己的 QQ 搞个智能机器人？GracyBot 就是为此而生的。基于 **Python 3.11+** & **NapCat** 的个性化定制 QQ 机器人框架，主打安全稳定、插件化扩展与便捷更新。
 
-**作者**：小禹 | 湖南汽车工程职业大学 · 计算机网络技术专业
+**作者**：小禹 / MiniYv | 湖南汽车工程职业大学 · 计算机网络技术专业
 **团队**：GracyBot 开发团队
 📧 **邮箱**：bc333333@163.com | 🐧 **QQ**：192004908 | 📢 **内测群**：127531571
 
@@ -49,6 +49,32 @@
 
 ## 更新变化
 
+### v1.9.25 (2026-06-12)
+
+#### 🚀 多实例多账号支持（重大更新）
+**问题背景**：v1.9.2 只支持单 QQ 号运行。插件硬编码全局 `ROBOT_ID` 和 `MASTER_ID`，无法区分是哪个账号收到的消息，也无法按账号回复。
+
+**变更内容**：从架构层面引入多实例支持，一个 GracyBot 进程可同时登录多个 QQ 号，各账号独立运行。
+
+| 模块 | 变更 |
+|------|------|
+| **AdapterPool** | 适配器池，支持注册多个适配器实例，按 `IdentityTag`（platform + bot_name）索引 |
+| **实例配置文件** | 每个实例独立配置于 `style/instances/<name>/config.json`，含 `robot_id`、`master_id`、`http_url`、`callback_port` |
+| **消息路由** | 根据 NapCat 回调的 `self_id` 自动匹配对应适配器实例，消息来源与回复一一对应 |
+| **Pipeline 上下文** | 自动为每个消息绑定来源适配器实例，所有消息发送自动走对账号 |
+| **CLI 实例管理** | `gracy instance add` / `gracy instance list` / `gracy instance remove` |
+
+#### 📦 插件开发兼容性
+- 新增 `get_current_robot_id()` — 替代 `from core.config import ROBOT_ID`，自动返回当前消息来源的 QQ 号
+- 新增 `get_current_master_id()` — 替代 `from core.config import MASTER_ID`，自动返回当前消息来源实例的主人 QQ
+- 旧风格插件无需修改代码，Pipeline 自动按来源适配器路由消息发送
+- `gracy_send_msg()` / `gracy_call_api()` / `gracy_get_platform_info()` 无 tag 时自动适配当前消息来源
+
+#### 🐛 问题修复
+- **自回显过滤**：HTTP 适配器 `parse_event()` 增加自回显过滤（`sub_type=self`、`sender_id==self_id`），避免 NapCat 回显消息进入 Pipeline 二次处理
+- **回调早返**：`parse_event()` 返回 None 时（非消息事件、自回显等）直接返回，不再执行 `callback_base()`，消除多余的"请求处理成功"日志
+- **日志性能**：恢复使用 `io.TextIOWrapper(sys.stdout.buffer)` 作为日志控制台处理器，避免 Hypercorn 接管 stdout 后日志丢失
+
 ### v1.9.2 (2026-05-31)
 
 #### 🔧 Linux 跨平台兼容性修复
@@ -75,6 +101,7 @@
 
 - **模块化架构** — 配置管理 / 日志系统 / 安全模块 / 监控面板 / 插件管理器分离，职责清晰
 - **多协议适配（GracyAdapter）** — 统一适配层，支持 HTTP 回调、WebSocket 正向、WebSocket 反向三种连接模式
+- **多实例多账号** — 单进程支持多个 QQ 号同时在线，各账号独立配置、独立路由、独立处理，`gracy instance` CLI 命令管理实例
 - **企业级安全防护** — 日志自动脱敏（QQ号/API Key/密码）、危险命令拦截、输入验证、频率限制、权限分级、审计日志
 - **插件化生态** — 插件即目录，放入 `plugins/` 自动注册，支持版本控制、依赖管理、循环依赖检测、热重载
 - **AI 对话** — 内置 LLM_Chat 插件，对接 OpenAI 兼容 API，支持多人设切换、上下文记忆、定时任务、戳一戳互动
@@ -87,7 +114,7 @@
 ## 项目结构
 
 ```
-GracyBot_V1.9.2/
+GracyBot_V1.9.25/
 ├── bot.py                      # 启动入口（仅调用 core/main.py）
 ├── config.json                 # 主配置文件
 ├── config.template.json        # 配置模板
@@ -95,7 +122,7 @@ GracyBot_V1.9.2/
 ├── requirements.txt            # Python 依赖
 │
 ├── core/                       # 核心框架
-│   ├── main.py                 # Flask 应用 & 启动流程
+│   ├── main.py                 # Quart 应用 & 启动流程
 │   ├── handler.py              # 消息处理 & 指令分发
 │   ├── plugin_manager.py       # 插件扫描/加载/注册/匹配
 │   ├── config.py               # 配置读取
@@ -121,7 +148,12 @@ GracyBot_V1.9.2/
 └── style/                      # 样式资源
     ├── gracybot_logo.py        # 启动 Logo
     ├── log_colors.py           # 日志配色
-    └── styling.py              # 样式工具
+    ├── styling.py              # 样式工具
+    └── instances/               # 多实例配置文件（每个 QQ 号一个目录）
+        ├── 主号/
+        │   └── config.json     # 实例配置：robot_id、master_id、http_url、callback_port
+        └── 小号/
+            └── config.json
 ```
 
 ---
@@ -130,7 +162,7 @@ GracyBot_V1.9.2/
 
 - **Python**: 3.11+
 - **NapCat**: OneBot v11 协议端（QQ 机器人必备，负责对接 QQ 协议）
-- **Python 依赖**: Flask、requests、psutil、Pillow、py-cpuinfo、rarfile（详见 `requirements.txt`）
+- **Python 依赖**: Quart、requests、psutil、Pillow、py-cpuinfo、rarfile（详见 `requirements.txt`）
 - **Node.js / npm**: 18+
 - **前端依赖**: React、TypeScript、Vite、TailwindCSS（GracyUI 插件内置，`npm install` 即可）
 - **操作系统**: Windows 10+ / Linux（Debian 11+）/ macOS
@@ -164,35 +196,57 @@ GracyBot_V1.9.2/
 
 ## 插件开发
 
-插件采用「即插即用」设计，开发步骤：
+插件采用「即插即用」设计，主推 `metadata.toml` + `@plugin_handler` 新风格（建议新插件使用），同时向下兼容旧风格 7 参数签名。
 
-1. 在 `plugins/` 下新建目录（目录名即插件名）
-2. 创建 `__init__.py`，定义 `PLUGIN_META` 元信息：
+### 新风格（推荐）
 
-```python
-PLUGIN_META = {
-    "name": "我的插件",
-    "version": "1.0.0",
-    "description": "插件描述",
-    "author": "作者名称",                    # 插件作者
-    "commands": ["/mycommand"],              # 触发指令列表
-    "handler": "handle_my_plugin",           # 核心处理函数名
-    "chat_type": ["private", "group"],       # 支持的聊天类型
-    "permission": "all",                     # all / master
-    "is_at_required": False,                 # 群聊是否需要 @机器人
-    "dependencies": [],                      # 依赖的其他插件
-}
+在 `plugins/<插件名>/` 下创建 `metadata.toml` 和插件文件：
+
+```toml
+[plugin]
+name        = "我的插件"
+version     = "1.0.0"
+author      = "作者"
+
+[handler]
+entry       = "handle_my_plugin"
+
+[trigger]
+commands       = ["/mycommand"]
+chat_type      = ["private", "group"]
+permission     = "all"           # "all" 或 "master"
+is_at_required = false
 ```
 
-3. 创建核心文件（文件名与 `PLUGIN_META["name"]` 对应），实现 handler 函数：
+```python
+from core.decorators.handler import plugin_handler
+
+@plugin_handler
+async def handle_my_plugin(ctx):
+    await ctx.reply("Hello from GracyBot!")
+```
+
+### 多账号适配
+
+插件内需要获取当前 QQ 号或主人 QQ 时，使用以下 API 代替全局 `import`：
+
+```python
+from core.config import get_current_robot_id, get_current_master_id
+
+# 获取当前消息来源的机器人 QQ（多账号时自动适配）
+qq = get_current_robot_id()
+
+# 获取当前消息来源实例的主人 QQ
+master = get_current_master_id()
+```
+
+### 旧风格（兼容）
 
 ```python
 def handle_my_plugin(plugin_manager, send_msg, data, sender_id, chat_type, target, logger):
     # 你的插件逻辑
     pass
 ```
-
-4. 重启机器人或开启热重载（`hotreload.json` 中 `"enabled": true`），插件自动加载。
 
 ---
 
@@ -219,10 +273,10 @@ def handle_my_plugin(plugin_manager, send_msg, data, sender_id, chat_type, targe
 
 ## 技术栈
 
-- **后端**: Python 3.11+ / Flask / Werkzeug
+- **后端**: Python 3.11+ / Quart / Hypercorn
 - **前端（GracyUI）**: React / TypeScript / Vite / TailwindCSS
 - **协议适配层（GracyAdapter）**: 抽象通用接口，当前已实现 OneBot v11（NapCat）
-- **依赖**: requests, Flask, psutil, Pillow, py-cpuinfo, rarfile
+- **依赖**: Quart、requests、psutil、Pillow、py-cpuinfo、rarfile
 
 > GracyAdapter 采用平台无关设计，OneBot 只是首个实现的适配器。后续将陆续接入 Telegram Bot API、Discord、微信等更多平台，扩展至多端机器人生态。
 

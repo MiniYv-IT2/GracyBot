@@ -222,6 +222,9 @@ class GracyOneBotWS(GracyAdapter):
             return None
         if post_type not in ("message", "notice"):
             return None
+        # 过滤输入状态通知（对方正在输入...），避免产生空消息日志
+        if data.get("notice_type") == "notify" and data.get("sub_type") == "input_status":
+            return None
 
         chat_type = data.get("message_type", "private")
         sender_id = str(data.get("user_id", ""))
@@ -451,10 +454,14 @@ class GracyOneBotWS(GracyAdapter):
                         self._api_condition.notify_all()
                     continue
 
-                # 事件消息 → 异步派发给插件
+                # 事件消息 → EventBus → Pipeline
                 event = self._parse_ws_message(data)
-                if event and self._on_event:
-                    self._event_executor.submit(self._on_event, event)
+                if event:
+                    try:
+                        from core.event import event_bus
+                        await event_bus.publish(event)
+                    except Exception as e:
+                        self._logger.error(f"[OneBotWS] EventBus 发送失败: {e}")
             # else: event fired or timeout → loop back to drain queue immediately
 
     async def _drain_api_send_queue_async(self, ws) -> None:
@@ -483,16 +490,16 @@ class GracyOneBotWS(GracyAdapter):
         if not self._ws or not self._loop or not self._loop.is_running():
             if self._running:
                 self._pending_messages.append(data)
-                self._logger.info(f"[OneBotWS] 未连接，消息暂存（共{len(self._pending_messages)}条）")
-                return True
+                count = len(self._pending_messages)
+                self._logger.info(f"[OneBotWS] 未连接，消息暂存（共{count}条）")
+                return False  # 未真正发送，告知调用方
             self._logger.warning("[OneBotWS] 未连接且已停止，无法发送")
             return False
         try:
             payload = json.dumps(data, ensure_ascii=False)
-            future = asyncio.run_coroutine_threadsafe(
+            asyncio.run_coroutine_threadsafe(
                 self._ws.send(payload), self._loop
             )
-            future.result(timeout=5)
             return True
         except Exception as e:
             self._logger.error(f"[OneBotWS] 发送失败: {e}")

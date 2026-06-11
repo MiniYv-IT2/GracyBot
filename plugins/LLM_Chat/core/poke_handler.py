@@ -13,7 +13,7 @@ POKE_REPLIES = [
     "别闹了,我在工作呢~"
 ]
 
-def handle_poke_event(data, robot_id):
+async def handle_poke_event(data, robot_id):
     if data.get("post_type") != "notice" or data.get("notice_type") != "notify" or data.get("sub_type") != "poke":
         return False
     
@@ -34,22 +34,22 @@ def handle_poke_event(data, robot_id):
     
     reply_content = ""
     if config.get("poke_ai_reply", True):
-        reply_content = generate_poke_reply(chat_id, nickname, chat_type, config)
+        reply_content = await generate_poke_reply(chat_id, nickname, chat_type, config)
     
     if not reply_content:
         reply_content = random.choice(POKE_REPLIES)
     
-    send_message(target_id, reply_content, chat_type)
+    await send_message(target_id, reply_content, chat_type)
     
     if config.get("poke_back", True) and random.random() < 0.7:
-        send_poke(user_id)
+        await send_poke(user_id)
     
     return True
 
-def generate_poke_reply(chat_id, nickname, chat_type, config):
+async def generate_poke_reply(chat_id, nickname, chat_type, config):
     try:
-        current_persona = get_current_persona(chat_id)
-        personas = get_personas()
+        current_persona = await get_current_persona(chat_id)
+        personas = await get_personas()
         if "默认人设" not in personas:
             personas["默认人设"] = config.get("default_persona", "")
         
@@ -64,23 +64,23 @@ def generate_poke_reply(chat_id, nickname, chat_type, config):
             {"role": "user", "content": "戳一戳"}
         ]
         
-        reply = call_llm_api(messages, config)
+        reply = await call_llm_api(messages, config)
         return reply[:30] if len(reply) > 30 else reply
     except:
         return ""
 
-def send_message(target_id, message, chat_type):
+async def send_message(target_id, message, chat_type):
     try:
         from core.gracy_adapter.send import gracy_send_msg
         from core.gracy_adapter.message import GracyText
-        gracy_send_msg(target_id, GracyText(text=message), chat_type=chat_type)
+        await gracy_send_msg(target_id, GracyText(text=message), chat_type=chat_type)
     except:
         pass
 
-def send_poke(target_id):
+async def send_poke(target_id):
     try:
         from core.gracy_adapter.send import gracy_call_api
-        gracy_call_api("send_poke", {"user_id": int(target_id)})
+        await gracy_call_api("send_poke", {"user_id": int(target_id)})
     except:
         pass
 

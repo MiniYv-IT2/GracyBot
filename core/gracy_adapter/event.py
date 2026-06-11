@@ -2,12 +2,15 @@
 
 无论消息来自 OneBot HTTP、WebSocket 还是未来的 Discord/Telegram，
 所有入站消息归一化为 GracyEvent 再交给插件处理。
+
+每个事件携带 source（IdentityTag），标识消息来源适配器。
 """
 
 from dataclasses import dataclass, field
-from typing import List
+from typing import List, Optional
 
 from core.gracy_adapter.message import GracyMsg
+from core.gracy_adapter.identity import IdentityTag
 
 
 @dataclass
@@ -26,6 +29,7 @@ class GracyEvent:
     nickname: str = ""                            # 发送者昵称
     is_at_bot: bool = False                       # 是否 @了机器人（仅群聊有意义）
     raw_data: dict = field(default_factory=dict)  # 平台原始数据（透传给需要深入访问的插件）
+    source: Optional[IdentityTag] = None           # 消息来源适配器标签（多适配器时区分）
 
     @property
     def plain_text(self) -> str:

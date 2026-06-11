@@ -48,6 +48,9 @@ logs/
 hotreload.json
 .restart_flag
 
+# ─── Trae AI IDE ───
+.trae/
+
 # ─── IDE ───
 .vscode/
 .idea/
@@ -67,5 +70,5 @@ tmp/
 temp/
 *.tmp
 
-# ─── 前端构建产物 ───
-plugins/GracyUI_plugin/frontend/dist/
+# ─── 前端构建产物（GracyUI 需要保留） ───
+# plugins/GracyUI_plugin/frontend/dist/

@@ -10,6 +10,7 @@ from abc import ABC, abstractmethod
 from typing import Callable, List, Optional
 
 from core.gracy_adapter.event import GracyEvent
+from core.gracy_adapter.identity import IdentityTag
 from core.gracy_adapter.message import GracyMsg
 
 
@@ -17,6 +18,7 @@ class GracyAdapter(ABC):
     """适配器抽象基类
 
     每个平台（OneBot / Discord / Telegram ...）各有一个实现类。
+    每个适配器实例应包含一个 IdentityTag，由调用方在 AdapterPool.register() 时设置。
     """
 
     @abstractmethod
@@ -75,3 +77,17 @@ class GracyAdapter(ABC):
         }
         """
         ...
+
+    @property
+    def tag(self) -> Optional[IdentityTag]:
+        """获取适配器身份标签
+
+        由 AdapterPool.register() 在注册时设置。
+        子类可以覆盖此属性返回固定 tag。
+        """
+        return getattr(self, '_tag', None)
+
+    @tag.setter
+    def tag(self, value: IdentityTag) -> None:
+        """设置适配器身份标签"""
+        self._tag = value

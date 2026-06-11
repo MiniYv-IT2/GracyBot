@@ -1,9 +1,7 @@
 {
-  "robot_id": "填写机器人ID",
   "callback_port": 3002,
-  "master_id": "填写主人ID",
-  "connection_mode": "ws_reverse",
-  "bot_version": "v1.9.2",
+  "connection_mode": "http",
+  "bot_version": "v1.9.25",
   "log_encoding": "utf-8",
   "log_level": "INFO",
   "debug_mode": false,

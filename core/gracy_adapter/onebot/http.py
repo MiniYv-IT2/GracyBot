@@ -10,13 +10,13 @@
     adapter.send(target, [GracyText("hello")], "private")
 """
 
+import asyncio
 import json
 import logging
 import time
-from concurrent.futures import ThreadPoolExecutor
 from typing import Callable, List, Optional
 
-import requests
+import aiohttp
 
 from core.gracy_adapter.adapter import GracyAdapter
 from core.gracy_adapter.event import GracyEvent
@@ -49,10 +49,11 @@ class GracyOneBot(GracyAdapter):
         self._logger = logging.getLogger("GracyOneBot")
         self._platform_info_cache: dict | None = None
         self._platform_info_cache_time: float = 0
+        self._session: aiohttp.ClientSession | None = None
 
     # ── 出站：发送消息 ──
 
-    def send(self, target: str, segments: List[GracyMsg], chat_type: str) -> bool:
+    async def send(self, target: str, segments: List[GracyMsg], chat_type: str) -> bool:
         """发送消息到目标
 
         Args:
@@ -73,23 +74,26 @@ class GracyOneBot(GracyAdapter):
             payload = {"group_id": int(target), "message": cq_str}
 
         try:
-            resp = requests.post(
+            session = await self._get_session()
+            async with session.post(
                 url,
                 data=json.dumps(payload, ensure_ascii=False).encode("utf-8"),
                 headers={"Content-Type": "application/json; charset=utf-8"},
-                timeout=10,
-            )
-            resp.raise_for_status()
-            result = resp.json()
-            success = result.get("retcode") == 0
-            if not success:
-                self._logger.error(f"[OneBot] 发送失败: {result.get('msg', '未知错误')}")
-            return success
-        except requests.exceptions.Timeout:
+                timeout=aiohttp.ClientTimeout(total=None),
+            ) as resp:
+                if resp.status != 200:
+                    self._logger.error(f"[OneBot] HTTP状态码 {resp.status}")
+                    return False
+                result = await resp.json()
+                success = result.get("retcode") == 0
+                if not success:
+                    self._logger.error(f"[OneBot] 发送失败: {result.get('msg', '未知错误')}")
+                return success
+        except (asyncio.TimeoutError, TimeoutError):
             self._logger.error("[OneBot] 发送超时")
             return False
-        except requests.exceptions.ConnectionError:
-            self._logger.error("[OneBot] 连接 NapCat 失败")
+        except aiohttp.ClientError as e:
+            self._logger.error(f"[OneBot] 连接 NapCat 失败: {e}")
             return False
         except Exception as e:
             self._logger.error(f"[OneBot] 发送异常: {e}")
@@ -108,9 +112,21 @@ class GracyOneBot(GracyAdapter):
             return None
         if post_type not in ("message", "notice"):
             return None
+        # 过滤输入状态通知（对方正在输入...），避免产生空消息日志
+        if data.get("notice_type") == "notify" and data.get("sub_type") == "input_status":
+            return None
+
+        # ── 过滤机器人自己的消息（自回显） ──
+        if data.get("sub_type") == "self":
+            return None
+        self_id = str(data.get("self_id", ""))
+        sender_id = str(data.get("user_id", ""))
+        if self_id and sender_id == self_id:
+            return None
+        if self._robot_id and sender_id == self._robot_id:
+            return None
 
         chat_type = data.get("message_type", "private")
-        sender_id = str(data.get("user_id", ""))
         target_id = str(
             data.get("user_id", "") if chat_type == "private" else data.get("group_id", "")
         )
@@ -160,33 +176,43 @@ class GracyOneBot(GracyAdapter):
     def stop(self) -> None:
         """释放资源"""
         self._on_event = None
+        if self._session:
+            asyncio.ensure_future(self._session.close())
+            self._session = None
+
+    async def _get_session(self) -> aiohttp.ClientSession:
+        """获取或创建 aiohttp 会话（惰性初始化）"""
+        if self._session is None or self._session.closed:
+            self._session = aiohttp.ClientSession()
+        return self._session
 
     # ── API 调用 ──
 
-    def call_api(self, action: str, params: dict = None) -> Optional[dict]:
+    async def call_api(self, action: str, params: dict = None) -> Optional[dict]:
         """通过 HTTP 调用 OneBot API"""
         try:
             url = f"{self._napcat_url}/{action}"
-            resp = requests.post(
+            session = await self._get_session()
+            async with session.post(
                 url,
                 data=json.dumps(params or {}, ensure_ascii=False).encode("utf-8"),
                 headers={"Content-Type": "application/json; charset=utf-8"},
-                timeout=10,
-            )
-            resp.raise_for_status()
-            result = resp.json()
-            if result.get("retcode") == 0:
-                return result.get("data")
-            self._logger.warning(f"[OneBot] API '{action}' 返回失败: {result.get('msg', '')}")
-            return None
+                timeout=aiohttp.ClientTimeout(total=None),
+            ) as resp:
+                if resp.status != 200:
+                    self._logger.warning(f"[OneBot] API '{action}' HTTP状态码 {resp.status}")
+                    return None
+                result = await resp.json()
+                if result.get("retcode") == 0:
+                    return result.get("data")
+                self._logger.warning(f"[OneBot] API '{action}' 返回失败: {result.get('msg', '')}")
+                return None
         except Exception as e:
             self._logger.debug(f"[OneBot] HTTP API '{action}' 调用失败: {e}")
             return None
 
-    def get_platform_info(self) -> dict:
+    async def get_platform_info(self) -> dict:
         """获取 OneBot 平台统计信息（60 秒缓存，避免高频调用刷屏日志）"""
-        import time
-        from concurrent.futures import ThreadPoolExecutor
         now = time.time()
         if self._platform_info_cache is not None and (now - self._platform_info_cache_time) < 60:
             return self._platform_info_cache
@@ -199,15 +225,12 @@ class GracyOneBot(GracyAdapter):
             "nickname": None,
         }
         try:
-            with ThreadPoolExecutor(max_workers=4) as ex:
-                fut_friends = ex.submit(self.call_api, "get_friend_list")
-                fut_groups = ex.submit(self.call_api, "get_group_list")
-                fut_version = ex.submit(self.call_api, "get_version_info")
-                fut_login = ex.submit(self.call_api, "get_login_info")
-                friend_list = fut_friends.result(timeout=5)
-                group_list = fut_groups.result(timeout=5)
-                version_info = fut_version.result(timeout=5)
-                login_info = fut_login.result(timeout=5)
+            friend_list, group_list, version_info, login_info = await asyncio.gather(
+                self.call_api("get_friend_list"),
+                self.call_api("get_group_list"),
+                self.call_api("get_version_info"),
+                self.call_api("get_login_info"),
+            )
             if isinstance(friend_list, list):
                 result["friend_count"] = len(friend_list)
             if isinstance(group_list, list):

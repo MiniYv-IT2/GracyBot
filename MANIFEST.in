@@ -1,0 +1,27 @@
+# ─── 模板配置文件 ───
+include config.template.json
+include core/gracy_adapter/onebot/onebot_config.template.json
+
+# ─── 前端构建产物（GracyUI 面板） ───
+recursive-include plugins/GracyUI_plugin/frontend/dist *
+
+# ─── 插件元数据 ───
+recursive-include plugins *.toml
+recursive-include plugins *.txt
+recursive-include plugins *.md
+
+# ─── 文档 ───
+include README.md
+
+# ─── 样式资源 ───
+recursive-include style *.py
+recursive-include style *.png
+recursive-include style *.otf
+recursive-include style *.json
+
+# ─── 排除大型无用目录 ───
+prune plugins/GracyUI_plugin/frontend/node_modules
+prune plugins/Easysearch/data
+prune plugins/Screenshot/data
+prune plugins/Help_plugin/data
+prune plugins/Xiaoyu_plugin/data

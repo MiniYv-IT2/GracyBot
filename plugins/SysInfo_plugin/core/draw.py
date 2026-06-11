@@ -2,9 +2,8 @@ import io
 import os
 import sys
 import platform
-import subprocess
-import requests
 import secrets
+import aiohttp
 import logging
 from typing import Dict, Tuple, Optional
 from PIL import Image, ImageDraw, ImageFont, ImageFilter
@@ -19,7 +18,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(
 try:
     from core.config import BOT_VERSION, ROBOT_ID  # 导入框架版本和配置
 except ImportError:
-    BOT_VERSION = "v2.0.0"  # 默认版本
+    BOT_VERSION = os.environ.get("GRACY_BOT_VERSION", "unknown")
     ROBOT_ID = "未知"
 
 # 常量配置
@@ -161,18 +160,20 @@ class SysInfoDrawer:
         except Exception:
             return platform.system()
     
-    def _download_avatar(self, url: str, save_path: str) -> Optional[Image.Image]:
+    async def _download_avatar(self, url: str) -> Optional[Image.Image]:
         """下载头像并返回Image对象"""
         try:
-            response = requests.get(url, timeout=5)
-            if response.status_code == 200:
-                img = Image.open(io.BytesIO(response.content)).convert("RGBA")
-                return img
-        except Exception as e:
+            async with aiohttp.ClientSession() as session:
+                async with session.get(url, timeout=aiohttp.ClientTimeout(total=5)) as response:
+                    if response.status == 200:
+                        data = await response.read()
+                        img = Image.open(io.BytesIO(data)).convert("RGBA")
+                        return img
+        except Exception:
             pass
         return None
     
-    def _draw_robot_info_card(self, draw: ImageDraw.ImageDraw, img: Image.Image) -> None:
+    async def _draw_robot_info_card(self, draw: ImageDraw.ImageDraw, img: Image.Image) -> None:
         """绘制机器人信息卡片"""
         # 计算卡片位置
         card_x = (IMG_WIDTH - CARD_WIDTH) // 2
@@ -191,7 +192,7 @@ class SysInfoDrawer:
         avatar_y = card_y + (CARD_HEIGHT - avatar_size) // 2
         
         if self.robot_info["avatar_url"]:
-            avatar_img = self._download_avatar(self.robot_info["avatar_url"], "")
+            avatar_img = await self._download_avatar(self.robot_info["avatar_url"])
             if avatar_img:
                 # 圆形裁剪头像
                 mask = Image.new("L", (avatar_size, avatar_size), 0)
@@ -380,7 +381,7 @@ class SysInfoDrawer:
         """绘制系统LOGO圆形"""
         self._draw_circle_base(draw, x, y, label, logo_img=self.os_logo, border_color=(220, 220, 220))
 
-    def draw(self) -> str:
+    async def draw(self) -> str:
         """生成图片并返回路径"""
         # 尝试加载随机背景图
         background = self._load_random_background()
@@ -409,7 +410,7 @@ class SysInfoDrawer:
         draw.text((title_x, title_y), title_text, font=self.font_title, fill=TITLE_COLOR)
 
         # 绘制机器人信息卡片
-        self._draw_robot_info_card(draw, img)
+        await self._draw_robot_info_card(draw, img)
 
         # 解析进度数据
         progress_data, value_data = self._parse_progress_data()

@@ -1,390 +1,509 @@
+"""GracyBot 插件管理器 — 负责扫描、加载、注册、匹配、重载"""
+
 import os
+import json
 import importlib.util
 from typing import Dict, List, Callable, Optional, Set, Tuple
 import re
-# 使用绝对导入
 from core.utils import logger
-from core.config import ROBOT_ID, MASTER_ID
-
-# 全局插件注册池：存储所有合法插件的元信息+处理函数
-PLUGIN_REGISTRY: List[Dict] = []
-# 存储已加载插件的版本信息，用于依赖检查
-LOADED_PLUGIN_VERSIONS: Dict[str, str] = {}
-# 用于检测循环依赖
-DEPENDENCY_GRAPH: Dict[str, List[str]] = {}
-VISITED: Set[str] = set()
+from core.tools.validator import load_plugin_toml, TOMLPluginError
+from core.decorators.registration import (
+    DECORATOR_COMMAND_REGISTRY,
+    FALLBACK_HANDLERS,
+    _register_decorated_function,
+    _register_fallback_function,
+    clear_registry,
+)
 
 
 class PluginManager:
-    """插件管理器单例类：负责扫描、加载、注册插件，提供指令匹配能力，支持版本控制和依赖管理"""
+    """插件管理器单例 — 扫描、加载、注册、匹配、重载、禁用"""
     _instance = None
-    _initialized = False
 
     def __new__(cls):
-        """单例模式：确保全局只有一个插件管理器实例"""
         if cls._instance is None:
             cls._instance = super().__new__(cls)
         return cls._instance
-    
+
+    def __init__(self):
+        self._initialized = False
+        self._plugin_configs: Dict[str, dict] = {}
+        self._registry: List[Dict] = []
+        self._versions: Dict[str, str] = {}
+        self._dep_graph: Dict[str, List[str]] = {}
+        self._ready_hooks: List[Callable] = []
+        self._visited: Set[str] = set()
+
+    # ── 属性访问器（供外部只读访问） ──
+
+    @property
+    def registry(self) -> List[Dict]:
+        """已注册插件的完整列表"""
+        return self._registry
+
+    @property
+    def versions(self) -> Dict[str, str]:
+        """已加载插件的版本号映射"""
+        return self._versions
+
+    # ── 版本工具 ──
+
     def parse_version(self, version: str) -> List[int]:
-        """解析版本号字符串为整数列表，用于版本比较
-        例如："1.2.3" -> [1, 2, 3]
-        """
+        """解析版本号字符串为整数列表"""
         try:
             parts = re.findall(r'\d+', version)
             return [int(part) for part in parts]
-        except Exception as e:
-            logger.error(f"解析版本号失败: {version} - {str(e)}")
+        except Exception:
             return [0]
-    
+
     def compare_versions(self, version1: str, version2: str) -> int:
-        """比较两个版本号
-        返回 1 如果 version1 > version2
-        返回 0 如果 version1 == version2
-        返回 -1 如果 version1 < version2
-        """
-        v1_parts = self.parse_version(version1)
-        v2_parts = self.parse_version(version2)
-        
-        # 确保版本号长度相等，不足补0
-        max_len = max(len(v1_parts), len(v2_parts))
-        v1_parts += [0] * (max_len - len(v1_parts))
-        v2_parts += [0] * (max_len - len(v2_parts))
-        
-        # 逐位比较
+        """版本号比较：1=v1>v2, 0=相等, -1=v1<v2"""
+        v1 = self.parse_version(version1)
+        v2 = self.parse_version(version2)
+        max_len = max(len(v1), len(v2))
+        v1 += [0] * (max_len - len(v1))
+        v2 += [0] * (max_len - len(v2))
         for i in range(max_len):
-            if v1_parts[i] > v2_parts[i]:
+            if v1[i] > v2[i]:
                 return 1
-            elif v1_parts[i] < v2_parts[i]:
+            elif v1[i] < v2[i]:
                 return -1
         return 0
-    
+
+    # ── 禁用列表 ──
+
+    @staticmethod
+    def _get_disabled_file() -> str:
+        """返回禁用列表 JSON 路径（项目根目录/.gracybot_disabled.json）"""
+        gracy_home = os.environ.get("GRACYBOT_HOME", os.getcwd())
+        return os.path.join(gracy_home, ".gracybot_disabled.json")
+
+    def load_disabled_plugins(self) -> Set[str]:
+        """从 JSON 加载已禁用插件名称集合"""
+        path = self._get_disabled_file()
+        try:
+            if os.path.exists(path):
+                with open(path, 'r', encoding='utf-8') as f:
+                    data = json.load(f)
+                    return set(data.get("disabled", []))
+        except Exception:
+            pass
+        return set()
+
+    def save_disabled_plugins(self, disabled: Set[str]) -> None:
+        """保存禁用插件集合到 JSON"""
+        path = self._get_disabled_file()
+        try:
+            with open(path, 'w', encoding='utf-8') as f:
+                json.dump({"disabled": sorted(disabled)}, f, ensure_ascii=False, indent=2)
+        except Exception as e:
+            logger.error(f"❌ 保存禁用列表失败: {e}")
+
+    # ── on_ready 钩子 ──
+
+    def register_on_ready(self, hook: Callable) -> None:
+        """注册 on_ready 钩子，框架初始化后统一调用"""
+        self._ready_hooks.append(hook)
+
+    def trigger_on_ready(self) -> None:
+        """触发所有 on_ready 钩子"""
+        for hook in self._ready_hooks:
+            try:
+                hook()
+            except Exception as e:
+                logger.error(f"❌ on_ready 钩子执行失败: {e}")
+
+    # ── 循环依赖检测 ──
+
     def check_circular_dependency(self, plugin_name: str, visited: Set[str], path: List[str]) -> bool:
-        """检测循环依赖"""
+        """DFS 检测循环依赖"""
         visited.add(plugin_name)
         path.append(plugin_name)
-        
-        if plugin_name in DEPENDENCY_GRAPH:
-            for dependency in DEPENDENCY_GRAPH[plugin_name]:
-                if dependency not in visited:
-                    if self.check_circular_dependency(dependency, visited, path):
+        if plugin_name in self._dep_graph:
+            for dep in self._dep_graph[plugin_name]:
+                if dep not in visited:
+                    if self.check_circular_dependency(dep, visited, path):
                         return True
-                elif dependency in path:
-                    cycle_start_index = path.index(dependency)
-                    cycle = " -> ".join(path[cycle_start_index:]) + " -> " + dependency
+                elif dep in path:
+                    cycle_start = path.index(dep)
+                    cycle = " -> ".join(path[cycle_start:]) + " -> " + dep
                     logger.error(f"❌ 检测到循环依赖: {cycle}")
                     return True
-        
         path.pop()
         return False
-    
+
     def check_plugin_dependencies(self, plugin_name: str, dependencies: List[Dict]) -> Tuple[bool, str]:
-        """检查插件依赖是否满足"""
+        """检查插件依赖是否满足版本要求"""
         if not dependencies:
             return True, ""
-        
         for dep in dependencies:
             dep_name = dep.get('name')
-            min_version = dep.get('min_version', '0.0.0')
-            max_version = dep.get('max_version', None)
-            
-            # 检查依赖插件是否已加载
-            if dep_name not in LOADED_PLUGIN_VERSIONS:
+            min_ver = dep.get('min_version', '0.0.0')
+            max_ver = dep.get('max_version')
+            if dep_name not in self._versions:
                 return False, f"依赖插件 '{dep_name}' 未加载"
-            
-            # 获取已加载插件的版本
-            loaded_version = LOADED_PLUGIN_VERSIONS[dep_name]
-            
-            # 检查最小版本要求
-            if self.compare_versions(loaded_version, min_version) < 0:
-                return False, f"依赖插件 '{dep_name}' 版本过低，需要 >= {min_version}，当前版本 {loaded_version}"
-            
-            # 检查最大版本限制
-            if max_version and self.compare_versions(loaded_version, max_version) > 0:
-                return False, f"依赖插件 '{dep_name}' 版本过高，需要 <= {max_version}，当前版本 {loaded_version}"
-        
+            loaded_ver = self._versions[dep_name]
+            if self.compare_versions(loaded_ver, min_ver) < 0:
+                return False, f"依赖插件 '{dep_name}' 版本过低，需要 >= {min_ver}，当前 {loaded_ver}"
+            if max_ver and self.compare_versions(loaded_ver, max_ver) > 0:
+                return False, f"依赖插件 '{dep_name}' 版本过高，需要 <= {max_ver}，当前 {loaded_ver}"
         return True, ""
 
+    # ── 初始化入口 ──
+
     def init(self, plugin_dir: str = "./plugins") -> None:
-        """初始化入口：扫描插件目录并注册所有合法插件（bot.py仅需调用这1行）"""
+        """初始化：扫描 → 加载 → 合并装饰器
+        元数据来自 metadata.toml（主通道）+ @on_command 装饰器（副通道）
+        """
         if self._initialized:
             logger.warning("⚠️ 插件管理器已初始化，无需重复调用")
             return
-        # 清空全局数据结构
-        PLUGIN_REGISTRY.clear()
-        LOADED_PLUGIN_VERSIONS.clear()
-        DEPENDENCY_GRAPH.clear()
-        
-        # 打印绝对路径，方便调试目录是否正确
+        self._registry.clear()
+        self._versions.clear()
+        self._dep_graph.clear()
+        self._ready_hooks.clear()
+        clear_registry()
+
         abs_plugin_dir = os.path.abspath(plugin_dir)
         logger.info(f"📌 开始扫描插件目录（绝对路径）：{abs_plugin_dir}")
-        
-        # 第一阶段：扫描并加载所有插件的元信息（不执行功能导入）
+
+        # 第一阶段：扫描 metadata
         plugins_meta = self._scan_plugins_metadata(plugin_dir)
-        
-        # 检测循环依赖
-        VISITED.clear()
-        for plugin_name in DEPENDENCY_GRAPH:
-            if plugin_name not in VISITED:
-                if self.check_circular_dependency(plugin_name, set(), []):
+
+        # 循环依赖检测
+        self._visited.clear()
+        for pname in self._dep_graph:
+            if pname not in self._visited:
+                if self.check_circular_dependency(pname, set(), []):
                     logger.error("❌ 检测到循环依赖，初始化失败！")
                     return
-        
-        # 第二阶段：按依赖顺序加载插件
+
+        # 第二阶段：按依赖顺序加载
         self._load_plugins_by_dependency(plugins_meta, plugin_dir)
-        
+
+        # 第三阶段：合并装饰器注册 + 按 priority 排序
+        self._merge_decorator_registry()
+        self._registry.sort(key=lambda p: p.get("priority", 50), reverse=True)
+
         self._initialized = True
-        # 记录注册结果到日志中，使用logger_manager确保与gracybot.log格式一致
         from core.logger_manager import logger_manager
         import logging
         logger_manager.log_with_context(logger, logging.INFO, f"\n✅ 插件管理器初始化完成！")
-        logger_manager.log_with_context(logger, logging.INFO, f"📊 共注册成功 {len(PLUGIN_REGISTRY)} 个插件：")
-        for idx, plugin in enumerate(PLUGIN_REGISTRY, 1):
-            # 只显示前3个指令，避免日志过长
-            show_commands = plugin['commands'][:3] + ["..."] if len(plugin['commands']) > 3 else plugin['commands']
-            version_info = f" | 版本：{plugin.get('version', '未指定')}"
-            logger_manager.log_with_context(logger, logging.INFO, f"   {idx}. 插件名称：{plugin['name']}{version_info} | 触发指令：{show_commands}")
+        logger_manager.log_with_context(logger, logging.INFO, f"📊 共注册成功 {len(self._registry)} 个插件：")
+        for idx, plugin in enumerate(self._registry, 1):
+            show_cmds = plugin['commands'][:3] + ["..."] if len(plugin['commands']) > 3 else plugin['commands']
+            ver_info = f" | 版本：{plugin.get('version', '未指定')}"
+            pri_info = f" | 优先级：{plugin.get('priority', 50)}"
+            logger_manager.log_with_context(logger, logging.INFO, f"   {idx}. {plugin['name']}{ver_info}{pri_info} | 指令：{show_cmds}")
+
+    # ── 第一阶段：扫描元信息 ──
 
     def _scan_plugins_metadata(self, plugin_dir: str) -> Dict[str, Dict]:
-        """第一阶段：扫描所有插件的元信息
-        返回 {plugin_name: 插件元信息} 的字典
-        """
+        """扫描所有插件的 metadata.toml，返回 {name: meta}"""
         plugins_meta = {}
-        
         if not os.path.exists(plugin_dir):
             logger.error(f"❌ 插件目录 {plugin_dir} 不存在，跳过插件加载")
             return plugins_meta
 
+        disabled_set = self.load_disabled_plugins()
+        if disabled_set:
+            logger.info(f"🚫 已禁用插件: {', '.join(sorted(disabled_set))}")
+
         for plugin_name in os.listdir(plugin_dir):
+            if plugin_name in disabled_set:
+                logger.debug(f"🚫 插件 {plugin_name} 已被禁用，跳过加载")
+                continue
             plugin_path = os.path.join(plugin_dir, plugin_name)
             if not os.path.isdir(plugin_path):
-                logger.debug(f"⚠️ 跳过非目录项：{plugin_name}（不是插件目录）")
                 continue
-            # 插件目录必须包含 __init__.py（元信息文件）
-            if "__init__.py" not in os.listdir(plugin_path):
-                logger.warning(f"❌ 插件 {plugin_name} 目录下缺失 __init__.py，跳过加载")
+            toml_path = os.path.join(plugin_path, "metadata.toml")
+            if not os.path.exists(toml_path):
+                logger.warning(f"❌ 插件 {plugin_name} 缺少 metadata.toml，跳过加载")
                 continue
-
             try:
-                # 动态导入插件的 __init__.py，读取元信息
-                init_file_path = os.path.join(plugin_path, "__init__.py")
-                spec = importlib.util.spec_from_file_location(
-                    name=f"plugins.{plugin_name}",
-                    location=init_file_path
-                )
-                plugin_meta_module = importlib.util.module_from_spec(spec)
-                spec.loader.exec_module(plugin_meta_module)
-
-                if not hasattr(plugin_meta_module, "PLUGIN_META"):
-                    logger.error(f"❌ 插件 {plugin_name} 的 __init__.py 中缺失 PLUGIN_META 元信息，跳过加载")
-                    continue
-                
-                plugin_meta = plugin_meta_module.PLUGIN_META
-                required_meta_fields = ["name", "commands", "handler", "chat_type", "permission"]
-                if not all(field in plugin_meta for field in required_meta_fields):
-                    logger.error(f"❌ 插件 {plugin_name} 元信息缺失必选字段！需包含：{required_meta_fields}，跳过加载")
-                    continue
-                
-                # 提取版本信息，默认为 "1.0.0"
-                if "version" not in plugin_meta:
-                    plugin_meta["version"] = "1.0.0"
-                    logger.warning(f"⚠️ 插件 {plugin_name} 未指定版本号，默认为 1.0.0")
-                
-                # 提取依赖信息，默认为空列表
-                plugin_meta["dependencies"] = plugin_meta.get("dependencies", [])
-                
-                # 构建依赖图
-                if plugin_meta["dependencies"]:
-                    DEPENDENCY_GRAPH[plugin_name] = [dep["name"] for dep in plugin_meta["dependencies"]]
-                else:
-                    DEPENDENCY_GRAPH[plugin_name] = []
-                
-                # 保存插件路径信息
-                plugin_meta["plugin_path"] = plugin_path
-                
-                plugins_meta[plugin_name] = plugin_meta
-                logger.debug(f"🔍 成功读取插件 {plugin_name} 元信息，版本：{plugin_meta['version']}")
-
+                meta = load_plugin_toml(toml_path, plugin_path)
+                meta["plugin_path"] = plugin_path
+                deps = meta.get("dependencies", [])
+                self._dep_graph[plugin_name] = [d["name"] for d in deps] if deps else []
+                plugins_meta[plugin_name] = meta
+                logger.debug(f"🔍 [TOML] 成功读取插件 {plugin_name} v{meta['version']} priority={meta['priority']}")
+            except TOMLPluginError as e:
+                logger.error(f"❌ {e}")
             except Exception as e:
-                logger.error(f"❌ 读取插件 {plugin_name} 元信息时发生异常：{str(e)}", exc_info=True)
-                continue
-        
+                logger.error(f"❌ 插件 {plugin_name} metadata.toml 加载异常: {e}", exc_info=True)
         return plugins_meta
-    
+
+    # ── 第二阶段：按依赖顺序加载 ──
+
     def _load_plugins_by_dependency(self, plugins_meta: Dict[str, Dict], plugin_dir: str) -> None:
-        """按依赖顺序加载插件核心功能"""
+        """按依赖顺序加载每个插件的核心模块"""
         loaded = set()
-        
-        def load_plugin(plugin_name: str):
+
+        def load_plugin(plugin_name: str) -> bool:
             if plugin_name in loaded:
                 return True
-            
             if plugin_name not in plugins_meta:
                 logger.error(f"❌ 依赖插件 '{plugin_name}' 不存在")
                 return False
-            
-            dependencies = plugins_meta[plugin_name].get("dependencies", [])
-            for dep in dependencies:
-                dep_name = dep["name"]
-                if dep_name not in loaded:
-                    if not load_plugin(dep_name):
+            meta = plugins_meta[plugin_name]
+            for dep in meta.get("dependencies", []):
+                if dep["name"] not in loaded:
+                    if not load_plugin(dep["name"]):
                         return False
-            
-            plugin_meta = plugins_meta[plugin_name]
-            dependencies_ok, error_msg = self.check_plugin_dependencies(plugin_name, dependencies)
-            if not dependencies_ok:
-                logger.error(f"❌ 插件 '{plugin_name}' 依赖检查失败: {error_msg}")
+            ok, err = self.check_plugin_dependencies(plugin_name, meta.get("dependencies", []))
+            if not ok:
+                logger.error(f"❌ 插件 '{plugin_name}' 依赖检查失败: {err}")
                 return False
-            
             try:
-                plugin_path = plugin_meta["plugin_path"]
-                core_file_name = f"{plugin_name}.py"
-                core_module_path = os.path.join(plugin_path, core_file_name)
-                
-                if not os.path.exists(core_module_path):
-                    logger.error(f"❌ 插件 {plugin_name} 缺失核心文件 {core_file_name}，跳过加载")
+                plugin_path = meta["plugin_path"]
+                core_file = f"{plugin_name}.py"
+                core_path = os.path.join(plugin_path, core_file)
+                if not os.path.exists(core_path):
+                    logger.error(f"❌ 插件 {plugin_name} 缺失核心文件 {core_file}，跳过加载")
                     return False
-                core_module_name = f"plugins.{plugin_name}.{core_file_name[:-3]}"
-                core_spec = importlib.util.spec_from_file_location(
-                    name=core_module_name,
-                    location=core_module_path
-                )
-                plugin_core_module = importlib.util.module_from_spec(core_spec)
-                core_spec.loader.exec_module(plugin_core_module)
-                
-                handler_func_name = plugin_meta["handler"]
-                if not hasattr(plugin_core_module, handler_func_name):
-                    logger.error(f"❌ 插件 {plugin_name} 中缺失核心处理函数 {handler_func_name}，跳过加载")
-                    return False
-                
-                handler_func = getattr(plugin_core_module, handler_func_name)
-                if not callable(handler_func):
-                    logger.error(f"❌ 插件 {plugin_name} 中 {handler_func_name} 不是可调用函数，跳过加载")
-                    return False
-                
-                registered_plugin = {
-                    **plugin_meta,
-                    "handler_func": handler_func,
-                    "core_module": plugin_core_module
-                }
-                PLUGIN_REGISTRY.append(registered_plugin)
-                LOADED_PLUGIN_VERSIONS[plugin_name] = plugin_meta["version"]
-                loaded.add(plugin_name)
-                
-                logger.debug(f"✅ 插件 {plugin_name} (版本 {plugin_meta['version']}) 注册成功！触发指令共 {len(plugin_meta['commands'])} 个")
-                if dependencies:
-                    dep_info = ", ".join([f"{dep['name']} (>= {dep.get('min_version', '0.0.0')})" for dep in dependencies])
-                    logger.debug(f"   依赖: {dep_info}")
-                    
-                return True
-                
-            except Exception as e:
-                logger.error(f"❌ 加载插件 {plugin_name} 时发生异常：{str(e)}", exc_info=True)
-                return False
-        
-        for plugin_name in plugins_meta:
-            if plugin_name not in loaded:
-                load_plugin(plugin_name)
+                mod_name = f"plugins.{plugin_name}.{core_file[:-3]}"
+                spec = importlib.util.spec_from_file_location(name=mod_name, location=core_path)
+                module = importlib.util.module_from_spec(spec)
+                spec.loader.exec_module(module)
 
-    def get_matched_plugin(self, raw_msg: str, chat_type: str, sender_id: str, is_at_bot: bool) -> Optional[Dict]:
-        """根据用户消息匹配对应的插件"""
-        logger.debug(f"\n[插件匹配] 开始匹配指令：{raw_msg[:20]}... | 聊天类型：{chat_type} | 发送者ID：{sender_id} | @机器人：{is_at_bot}")
-        logger.debug(f"[插件匹配] 当前注册池插件数量：{len(PLUGIN_REGISTRY)}")
-        
-        for plugin in PLUGIN_REGISTRY:
+                handler_name = meta["handler"]
+                if not hasattr(module, handler_name):
+                    logger.error(f"❌ 插件 {plugin_name} 中缺失处理函数 {handler_name}，跳过加载")
+                    return False
+                handler_func = getattr(module, handler_name)
+                if not callable(handler_func):
+                    logger.error(f"❌ 插件 {plugin_name} 中 {handler_name} 不可调用，跳过加载")
+                    return False
+
+                # 扫描装饰器
+                pname = meta.get("name", plugin_name)
+                for attr_name in dir(module):
+                    attr_val = getattr(module, attr_name)
+                    if callable(attr_val) and hasattr(attr_val, "_gracy_on_command"):
+                        _register_decorated_function(
+                            attr_val,
+                            plugin_name=pname,
+                            permission=meta.get("permission", "all"),
+                            chat_type=meta.get("chat_type", ["private", "group"]),
+                            is_at_required=meta.get("is_at_required", False),
+                        )
+                        logger.debug(f"🔍 [装饰器] 插件 {pname} 注册命令: {attr_val._gracy_on_command}")
+                    if callable(attr_val) and hasattr(attr_val, "_gracy_fallback"):
+                        _register_fallback_function(
+                            attr_val,
+                            plugin_name=pname,
+                            chat_type=meta.get("chat_type", ["private", "group"]),
+                        )
+                        logger.debug(f"🔍 [装饰器] 插件 {pname} 注册兜底处理器")
+
+                self._registry.append({
+                    **meta,
+                    "handler_func": handler_func,
+                    "core_module": module,
+                })
+                self._versions[plugin_name] = meta["version"]
+                loaded.add(plugin_name)
+                self._init_plugin_config(plugin_name, plugin_path)
+                logger.debug(f"✅ 插件 {plugin_name} (v{meta['version']}) 注册成功！")
+                if meta.get("dependencies"):
+                    dep_info = ", ".join(f"{d['name']} (>= {d.get('min_version', '0.0.0')})" for d in meta["dependencies"])
+                    logger.debug(f"   依赖: {dep_info}")
+                return True
+            except Exception as e:
+                logger.error(f"❌ 加载插件 {plugin_name} 异常: {e}", exc_info=True)
+                return False
+
+        for pname in plugins_meta:
+            if pname not in loaded:
+                load_plugin(pname)
+
+    # ── 第三阶段：合并装饰器注册 ──
+
+    def _merge_decorator_registry(self) -> None:
+        """将 DECORATOR_COMMAND_REGISTRY 合并到 self._registry"""
+        existing_names = {p["name"] for p in self._registry}
+        for entry in DECORATOR_COMMAND_REGISTRY:
+            pname = entry.get("plugin_name", "unknown")
+            if pname in existing_names:
+                for p in self._registry:
+                    if p["name"] == pname:
+                        for cmd in entry.get("commands", []):
+                            if cmd not in p["commands"]:
+                                p["commands"].append(cmd)
+                        p["handler_func"] = entry["handler_func"]
+                        break
+            else:
+                merged = {
+                    "name": pname,
+                    "version": "0.0.0",
+                    "author": "",
+                    "description": "",
+                    "priority": 50,
+                    "commands": entry.get("commands", []),
+                    "handler_func": entry["handler_func"],
+                    "chat_type": entry.get("chat_type", ["private", "group"]),
+                    "permission": entry.get("permission", "all"),
+                    "is_at_required": entry.get("is_at_required", False),
+                    "plugin_path": "",
+                    "from_decorator": True,
+                }
+                self._registry.append(merged)
+                self._versions[pname] = merged["version"]
+                existing_names.add(pname)
+                logger.debug(f"🔍 [装饰器] 纯装饰器插件: {pname} 命令: {merged['commands']}")
+
+    # ── 指令匹配（供 Pipeline 调用） ──
+
+    def get_matched_plugin(self, raw_msg: str, chat_type: str, sender_id: str, is_at_bot: bool,
+                           master_id: str = "") -> Optional[Dict]:
+        """串行匹配（备用/兼容路径，新 Pipeline 用并行匹配）"""
+        master_check = str(master_id) if master_id else ""
+        for plugin in self._registry:
             if chat_type not in plugin["chat_type"]:
-                logger.debug(f"[插件匹配] 插件 {plugin['name']} v{plugin.get('version', 'N/A')} 场景不匹配（支持：{plugin['chat_type']}，当前：{chat_type}），跳过")
                 continue
-            if plugin["permission"] == "master" and str(sender_id) != str(MASTER_ID):
-                logger.debug(f"[插件匹配] 插件 {plugin['name']} v{plugin.get('version', 'N/A')} 权限不足（仅主人可用），跳过")
-                continue
+            if plugin["permission"] == "master":
+                if not master_check or str(sender_id) != master_check:
+                    continue
             if chat_type == "group" and plugin.get("is_at_required", False) and not is_at_bot:
-                logger.debug(f"[插件匹配] 插件 {plugin['name']} v{plugin.get('version', 'N/A')} 群聊需@机器人，当前未@，跳过")
                 continue
-            def _match_cmd(cmd: str, msg: str) -> bool:
-                """// 只在独立出现时匹配"""
+            matched_cmd = None
+            for cmd in plugin["commands"]:
                 if cmd == "//":
-                    import re
-                    return bool(re.search(r'(?:^|\s)//', msg))
-                return cmd in msg
-            matched_cmd = [cmd for cmd in plugin["commands"] if _match_cmd(cmd, raw_msg)]
+                    if re.search(r'(?:^|\s)//', raw_msg):
+                        matched_cmd = cmd
+                        break
+                elif cmd in raw_msg:
+                    matched_cmd = cmd
+                    break
             if matched_cmd:
-                logger.debug(f"[插件匹配] 插件 {plugin['name']} v{plugin.get('version', 'N/A')} 匹配成功！触发指令：{matched_cmd}")
                 return plugin
-        
-        # 无匹配插件，静默返回（正常聊天无需警告）
         return None
-    
+
+    # ── 查询 ──
+
     def get_plugin_metadata(self, plugin_name: str) -> Optional[Dict]:
-        """获取插件的元信息"""
-        for plugin in PLUGIN_REGISTRY:
-            if plugin.get('name') == plugin_name:
-                # 返回插件的完整元信息
+        """获取指定插件的元信息"""
+        for p in self._registry:
+            if p.get('name') == plugin_name:
                 return {
-                    'name': plugin['name'],
-                    'version': plugin.get('version', 'N/A'),
-                    'commands': plugin['commands'],
-                    'chat_type': plugin['chat_type'],
-                    'permission': plugin['permission'],
-                    'dependencies': plugin.get('dependencies', []),
-                    'plugin_path': plugin.get('plugin_path', '')
+                    "name": p.get("name"),
+                    "version": p.get("version"),
+                    "author": p.get("author"),
+                    "description": p.get("description"),
+                    "priority": p.get("priority", 50),
+                    "commands": p.get("commands"),
+                    "chat_type": p.get("chat_type"),
+                    "permission": p.get("permission"),
+                    "is_at_required": p.get("is_at_required", False),
+                    "icon_path": p.get("icon_path"),
+                    "dependencies": p.get("dependencies", []),
+                    "plugin_path": p.get("plugin_path", ""),
                 }
         return None
-    
+
     def get_all_plugins_metadata(self) -> List[Dict]:
         """获取所有已加载插件的元信息列表"""
-        return [self.get_plugin_metadata(plugin['name']) for plugin in PLUGIN_REGISTRY]
-    
+        return [self.get_plugin_metadata(p['name']) for p in self._registry]
+
+    def find_plugin_by_command(self, command: str) -> Optional[Dict]:
+        """根据指令查找所属插件"""
+        for p in self._registry:
+            if command in p.get("commands", []):
+                return p
+        return None
+
+    def get_plugin_count(self) -> int:
+        """获取已注册插件总数"""
+        return len(self._registry)
+
+    def is_plugin_loaded(self, plugin_name: str) -> bool:
+        """检查插件是否已加载"""
+        return plugin_name in self._versions
+
+    # ── 重载 ──
+
     def reload_plugin(self, plugin_name: str) -> bool:
-        """重载指定的插件"""
+        """重载指定插件（全量重扫）"""
         plugin_path = None
-        for plugin in PLUGIN_REGISTRY:
-            if plugin.get('name') == plugin_name:
-                plugin_path = plugin.get('plugin_path')
+        for p in self._registry:
+            if p.get('name') == plugin_name:
+                plugin_path = p.get('plugin_path')
                 break
-        
         if not plugin_path:
             logger.error(f"❌ 未找到插件 {plugin_name}")
             return False
-        
         try:
-            # 从注册池中移除插件（使用 [:] 原地修改，避免 global 声明）
-            PLUGIN_REGISTRY[:] = [p for p in PLUGIN_REGISTRY if p.get('name') != plugin_name]
-            if plugin_name in LOADED_PLUGIN_VERSIONS:
-                del LOADED_PLUGIN_VERSIONS[plugin_name]
-            
+            self._registry[:] = [p for p in self._registry if p.get('name') != plugin_name]
+            self._versions.pop(plugin_name, None)
             logger.info(f"🔄 开始重载插件 {plugin_name}")
-            
             self._initialized = False
             self.init(os.path.dirname(plugin_path))
-            
             logger.info(f"✅ 插件 {plugin_name} 重载完成")
             return True
-            
         except Exception as e:
-            logger.error(f"❌ 重载插件 {plugin_name} 时发生异常：{str(e)}", exc_info=True)
+            logger.error(f"❌ 重载插件 {plugin_name} 异常: {e}", exc_info=True)
             return False
-    
-    def shutdown(self):
-        """关闭插件管理器，清理资源"""
-        logger.info("🔒 开始关闭插件管理器")
-        
-        for plugin in PLUGIN_REGISTRY:
-            try:
-                core_module = plugin.get('core_module')
-                if core_module and hasattr(core_module, 'on_shutdown'):
-                    shutdown_func = getattr(core_module, 'on_shutdown')
-                    if callable(shutdown_func):
-                        logger.debug(f"调用插件 {plugin['name']} 的 on_shutdown 方法")
-                        shutdown_func()
-            except Exception as e:
-                logger.error(f"调用插件 {plugin['name']} 的 on_shutdown 方法时出错：{str(e)}")
-        
-        PLUGIN_REGISTRY.clear()
-        LOADED_PLUGIN_VERSIONS.clear()
-        DEPENDENCY_GRAPH.clear()
-        
-        self._initialized = False
-        logger.info("✅ 插件管理器已关闭")
 
+    # ── 配置初始化 ──
+
+    def _init_plugin_config(self, plugin_name: str, plugin_path: str) -> dict:
+        """初始化插件配置（config.py + config.json）"""
+        config_py_path = os.path.join(plugin_path, "config.py")
+        if not os.path.exists(config_py_path):
+            self._plugin_configs[plugin_name] = {}
+            return {}
+        try:
+            mod_name = f"plugins.{plugin_name}.config"
+            spec = importlib.util.spec_from_file_location(name=mod_name, location=config_py_path)
+            mod = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(mod)
+            default = getattr(mod, "DEFAULT_CONFIG", None)
+            if default is None or not isinstance(default, dict):
+                self._plugin_configs[plugin_name] = {}
+                return {}
+            plugin_cfg_json = os.path.join(plugin_path, "config.json")
+            if not os.path.exists(plugin_cfg_json):
+                with open(plugin_cfg_json, "w", encoding="utf-8") as f:
+                    json.dump(default, f, ensure_ascii=False, indent=2)
+            # 全局样式配置
+            style_dir = self._get_style_config_dir()
+            if style_dir:
+                style_cfg = os.path.join(style_dir, f"{plugin_name}_config.json")
+                if os.path.exists(style_cfg):
+                    with open(style_cfg, "r", encoding="utf-8") as f:
+                        user_cfg = json.load(f)
+                    merged = {**default}
+                    for k, v in user_cfg.items():
+                        merged[k] = v
+                    for k, v in default.items():
+                        if k not in user_cfg:
+                            user_cfg[k] = v
+                    with open(style_cfg, "w", encoding="utf-8") as f:
+                        json.dump(user_cfg, f, ensure_ascii=False, indent=2)
+                    self._plugin_configs[plugin_name] = merged
+                else:
+                    os.makedirs(style_dir, exist_ok=True)
+                    with open(style_cfg, "w", encoding="utf-8") as f:
+                        json.dump(default, f, ensure_ascii=False, indent=2)
+                    self._plugin_configs[plugin_name] = dict(default)
+            else:
+                self._plugin_configs[plugin_name] = dict(default)
+            return self._plugin_configs[plugin_name]
+        except Exception as e:
+            logger.error(f"❌ 插件 {plugin_name} 配置初始化失败: {e}")
+            self._plugin_configs[plugin_name] = {}
+            return {}
+
+    def get_plugin_config(self, plugin_name: str) -> dict:
+        """获取插件配置"""
+        return self._plugin_configs.get(plugin_name, {})
+
+    def _get_style_config_dir(self) -> Optional[str]:
+        """获取 style/config 全局配置目录"""
+        base = os.environ.get("GRACYBOT_HOME", os.getcwd())
+        style_dir = os.path.join(base, "style", "config")
+        return style_dir if os.path.exists(style_dir) else None
+
+
+# ── 全局单例 ──
 plugin_manager = PluginManager()

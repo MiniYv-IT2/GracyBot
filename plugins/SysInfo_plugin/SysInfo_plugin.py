@@ -2,6 +2,7 @@ import subprocess
 import platform
 import time
 import logging
+import asyncio
 from typing import Dict
 import json
 import os
@@ -17,7 +18,7 @@ from core.config import (
     BOT_VERSION,
     MASTER_ID,
     LOG_ENCODING,
-    ROBOT_ID
+    get_current_robot_id,
 )
 from core.gracy_adapter.send import gracy_send_msg
 from core.gracy_adapter.message import GracyImage, GracyText
@@ -57,7 +58,7 @@ def _get_cpu_usage() -> float:
     except Exception:
         return 0.0
 
-def _get_gpu_info() -> Dict:
+async def _get_gpu_info() -> Dict:
     cached = _cache_get("gpu_info")
     if cached:
         return cached
@@ -66,10 +67,21 @@ def _get_gpu_info() -> Dict:
         system = platform.system()
         if system == "Linux":
             try:
-                result = subprocess.run(["lspci"], capture_output=True, text=True, timeout=3)
-                if result.returncode == 0:
+                proc = await asyncio.create_subprocess_exec(
+                    "lspci",
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE
+                )
+                try:
+                    stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=3)
+                except asyncio.TimeoutError:
+                    proc.kill()
+                    await proc.wait()
+                    raise
+                if proc.returncode == 0:
                     found = []
-                    for line in result.stdout.split('\n'):
+                    stdout_text = stdout.decode('utf-8', errors='replace')
+                    for line in stdout_text.split('\n'):
                         if 'VGA' in line or '3D' in line or 'Display' in line:
                             device_info = line.split(':')[-1].strip()
                             device_info = device_info.replace('Corporation', '').replace('Inc.', '').replace('Ltd.', '').strip()
@@ -90,16 +102,25 @@ def _get_gpu_info() -> Dict:
         elif system == "Windows":
             try:
                 # wmic 在 Win11 24H2+ 已移除，改用 PowerShell Get-CimInstance
-                result = subprocess.run(
-                    ["powershell", "-NoProfile", "-Command",
-                     "Get-CimInstance Win32_VideoController | Select-Object -ExpandProperty Name"],
-                    capture_output=True, text=True, timeout=5)
-                if result.returncode == 0:
+                proc = await asyncio.create_subprocess_exec(
+                    "powershell", "-NoProfile", "-Command",
+                    "Get-CimInstance Win32_VideoController | Select-Object -ExpandProperty Name",
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE
+                )
+                try:
+                    stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=5)
+                except asyncio.TimeoutError:
+                    proc.kill()
+                    await proc.wait()
+                    raise
+                if proc.returncode == 0:
                     # 过滤虚拟/远程显示适配器，所有真实 GPU 拼一行（双空格分隔）
                     virtual_keywords = ["virtual", "todesk", "mumu", "gameviewer", "remote",
                                        "parsec", "sunshine", "indirect", "displayonly"]
                     real_gpus = []
-                    for line in result.stdout.strip().split('\n'):
+                    stdout_text = stdout.decode('utf-8', errors='replace')
+                    for line in stdout_text.strip().split('\n'):
                         name = line.strip()
                         if not name or name.lower() == "name":
                             continue
@@ -115,11 +136,11 @@ def _get_gpu_info() -> Dict:
     _cache_set("gpu_info", gpu_info)
     return gpu_info
 
-def _get_io_stats() -> Dict:
+async def _get_io_stats() -> Dict:
     io_stats = {"read_mb_s": "0.0MB/s", "write_mb_s": "0.0MB/s", "read_iops_str": "0 IOPS", "write_iops_str": "0 IOPS"}
     try:
         initial_io = psutil.disk_io_counters(perdisk=False)
-        time.sleep(0.1)
+        await asyncio.sleep(0.1)
         final_io = psutil.disk_io_counters(perdisk=False)
         
         if initial_io and final_io:
@@ -181,7 +202,7 @@ def _get_network_info() -> Dict:
         network_info["type"] = "网络连接"
     return network_info
 
-def _get_shell_terminal() -> Dict:
+async def _get_shell_terminal() -> Dict:
     """获取Shell和Terminal环境信息"""
     shell_info = {"shell": "未知", "terminal": "未知"}
     try:
@@ -189,10 +210,21 @@ def _get_shell_terminal() -> Dict:
         shell_path = os.environ.get('SHELL', '')
         if shell_path and 'bash' in shell_path:
             try:
-                result = subprocess.run(["bash", "--version"], capture_output=True, text=True, timeout=3)
-                if result.returncode == 0:
+                proc = await asyncio.create_subprocess_exec(
+                    "bash", "--version",
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE
+                )
+                try:
+                    stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=3)
+                except asyncio.TimeoutError:
+                    proc.kill()
+                    await proc.wait()
+                    raise
+                if proc.returncode == 0:
                     # 提取版本信息的第一行
-                    version_line = result.stdout.split('\n')[0]
+                    stdout_text = stdout.decode('utf-8', errors='replace')
+                    version_line = stdout_text.split('\n')[0]
                     shell_info["shell"] = version_line.replace("GNU bash，版本 ", "bash ").replace("GNU bash, version ", "bash ")
                 else:
                     shell_info["shell"] = "bash"
@@ -220,9 +252,9 @@ def _get_shell_terminal() -> Dict:
         shell_info["terminal"] = "无终端设备"
     return shell_info
 
-def _get_robot_info() -> Dict:
+async def _get_robot_info() -> Dict:
     robot_info = {
-        "qq": ROBOT_ID,
+        "qq": get_current_robot_id(),
         "nickname": "GracyBot",
         "avatar_url": None,
         "friend_count": 0,
@@ -236,7 +268,7 @@ def _get_robot_info() -> Dict:
     try:
         from core.gracy_adapter.send import gracy_get_platform_info
         # get_platform_info 内部已含 get_login_info，无需重复调
-        platform_info = gracy_get_platform_info()
+        platform_info = await gracy_get_platform_info()
         if platform_info.get("friend_count") is not None:
             robot_info["friend_count"] = platform_info["friend_count"]
         if platform_info.get("group_count") is not None:
@@ -250,10 +282,10 @@ def _get_robot_info() -> Dict:
     except Exception as e:
         logger.error(f"[SysInfo] 获取机器人/好友/群信息失败: {type(e).__name__}: {e}")
     try:
-        from core.plugin_manager import PLUGIN_REGISTRY
-        robot_info["plugin_count"] = len(PLUGIN_REGISTRY)
+        from core.plugin_manager import plugin_manager
+        robot_info["plugin_count"] = len(plugin_manager.registry)
         command_count = 0
-        for plugin in PLUGIN_REGISTRY:
+        for plugin in plugin_manager.registry:
             command_count += len(plugin.get("commands", []))
         robot_info["command_count"] = command_count
     except Exception:
@@ -276,7 +308,7 @@ def _get_robot_info() -> Dict:
 
     return robot_info
 
-def get_system_info() -> Dict:
+async def get_system_info() -> Dict:
     """跨平台系统信息获取函数（使用psutil实现跨平台兼容）"""
     t0 = time.time()
     # 基础系统信息
@@ -391,19 +423,15 @@ def get_system_info() -> Dict:
     
     # 获取额外信息（从draw.py移植）
     t_extra = time.time()
-    with ThreadPoolExecutor(max_workers=6) as ex:
-        fut_cpu = ex.submit(_get_cpu_usage)
-        fut_gpu = ex.submit(_get_gpu_info)
-        fut_io = ex.submit(_get_io_stats)
-        fut_net = ex.submit(_get_network_info)
-        fut_shell = ex.submit(_get_shell_terminal)
-        fut_robot = ex.submit(_get_robot_info)
-        cpu_usage = fut_cpu.result()
-        gpu_info = fut_gpu.result()
-        io_stats = fut_io.result()
-        network_info = fut_net.result()
-        shell_terminal = fut_shell.result()
-        robot_info = fut_robot.result()
+    cpu_usage_task = asyncio.to_thread(_get_cpu_usage)
+    gpu_info_task = _get_gpu_info()
+    io_stats_task = _get_io_stats()
+    net_info_task = asyncio.to_thread(_get_network_info)
+    shell_task = _get_shell_terminal()
+    robot_task = _get_robot_info()
+    cpu_usage, gpu_info, io_stats, network_info, shell_terminal, robot_info = await asyncio.gather(
+        cpu_usage_task, gpu_info_task, io_stats_task, net_info_task, shell_task, robot_task
+    )
     
     t_done = time.time()
     logger.debug(f"[SysInfo⏱] 数据采集总耗时={t_done - t0:.1f}s | 并行段={t_done - t_extra:.1f}s")
@@ -432,26 +460,26 @@ def get_system_info() -> Dict:
         "robot_info": robot_info
     }
 
-def handle_status_cmd(target: str, chat_type: str):
+async def handle_status_cmd(target: str, chat_type: str):
     """发送系统状态图片"""
     t_start = time.time()
-    info = get_system_info()  # 获取完整系统信息
+    info = await get_system_info()  # 获取完整系统信息
     
     # 检查绘图模块是否可用
     if SysInfoDrawer is None:
         logger.error("绘图模块未加载，无法发送系统状态")
-        gracy_send_msg(target, GracyText(text="❌ 系统状态绘图模块未加载，无法显示状态信息"), chat_type=chat_type)
+        await gracy_send_msg(target, GracyText(text="❌ 系统状态绘图模块未加载，无法显示状态信息"), chat_type=chat_type)
         return
         
     try:
         # 生成最新状态图片（自动覆盖旧缓存）
         t_draw = time.time()
         drawer = SysInfoDrawer(info)
-        img_path = drawer.draw()
+        img_path = await drawer.draw()
         t_send = time.time()
         logger.debug(f"[SysInfo⏱] 绘图耗时={t_send - t_draw:.1f}s")
         # 图片消息（通过 GracyAdapter 适配层发送）
-        if gracy_send_msg(target, GracyImage(file_path=img_path), chat_type=chat_type):
+        if await gracy_send_msg(target, GracyImage(file_path=img_path), chat_type=chat_type):
             t_end = time.time()
             logger.debug(f"[SysInfo⏱] 发送耗时={t_end - t_send:.1f}s | 总耗时={t_end - t_start:.1f}s")
             logger.info(sanitize_log(f"✅ 发送系统状态图片到{target}"))
@@ -459,10 +487,10 @@ def handle_status_cmd(target: str, chat_type: str):
             logger.error(sanitize_log(f"❌ 发送系统状态图片失败，目标：{target}"))
     except Exception as e:
         logger.error(f"图片生成失败：{str(e)}")
-        gracy_send_msg(target, GracyText(text="❌ 系统状态图片生成失败，请检查日志"), chat_type=chat_type)
+        await gracy_send_msg(target, GracyText(text="❌ 系统状态图片生成失败，请检查日志"), chat_type=chat_type)
 
 # 原有核心处理函数（完全保留，不做任何修改）
-def handle_sysinfo_plugin(self_bot, bot, message, user_id, chat_type, permission, logger):
+async def handle_sysinfo_plugin(self_bot, bot, message, user_id, chat_type, permission, logger):
     # 1. 提取并清理消息内容（过滤空格、@机器人符号，兼容群聊格式）
     raw_msg = message.get("text", "").strip()
     msg_content = raw_msg.replace(" ", "").replace("　", "").replace(f"@1972693082", "").replace(f"@机器人", "").strip()
@@ -476,7 +504,7 @@ def handle_sysinfo_plugin(self_bot, bot, message, user_id, chat_type, permission
     
     # 3. 指令匹配（保持原有功能逻辑不变）
     if msg_content in ["/运行状态", "/info", "/status"]:
-        handle_status_cmd(target_id, chat_type)
+        await handle_status_cmd(target_id, chat_type)
         logger.info(f"用户{user_id}（{chat_type}）查询系统状态，目标ID：{target_id}")
         return True
     

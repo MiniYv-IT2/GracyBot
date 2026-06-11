@@ -1,0 +1,15 @@
+[plugin]
+name        = "LLM_Chat"
+version     = "1.4.3"
+author      = "GracyBot开发团队"
+description = "AI对话插件，支持多人设切换、上下文记忆、定时任务、戳一戳互动"
+priority    = 30
+
+[handler]
+entry       = "handle_llm_chat"
+
+[trigger]
+commands       = ["//", "/chat帮助", "/设置OpenAI", "/设置视觉模型", "/视觉模型开关", "/新增人设", "/删除人设", "/查看人设列表", "/切换人设", "/清除记忆", "/persona", "/+persona", "/-persona", "/persona=", "/戳一戳开关", "/戳一戳状态", "/设置上下文数量", "/查看配置"]
+chat_type      = ["private", "group"]
+permission     = "all"
+is_at_required = true

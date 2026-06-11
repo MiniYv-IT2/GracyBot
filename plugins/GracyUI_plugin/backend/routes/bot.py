@@ -1,11 +1,11 @@
 """Bot 信息 API — QQ 头像 / 昵称"""
-from flask import Blueprint
+from quart import Blueprint
 
 bot_bp = Blueprint("bot", __name__, url_prefix="/api")
 
 
 @bot_bp.route("/bot-info")
-def api_bot_info():
+async def api_bot_info():
     """返回 Bot QQ 号和头像 URL"""
     robot_id = ""
     nickname = "GracyBot"
@@ -17,7 +17,7 @@ def api_bot_info():
 
     try:
         from core.gracy_adapter.send import gracy_get_platform_info
-        info = gracy_get_platform_info()
+        info = await gracy_get_platform_info()
         nickname = info.get("nickname", "GracyBot")
     except Exception:
         pass

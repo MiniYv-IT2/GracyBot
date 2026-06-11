@@ -1,40 +1,11 @@
 import io
 import os
 import textwrap
-import sys
 from typing import Dict, List, Tuple, Any
-
-# 动态获取虚拟环境site-packages路径（支持所有Python版本）
-def get_venv_site_packages():
-    """动态获取虚拟环境site-packages路径"""
-    try:
-        # 优先使用site模块
-        import site
-        return site.getsitepackages()[0]
-    except:
-        try:
-            # 从sys.executable推导
-            import pathlib
-            venv_path = pathlib.Path(sys.executable).parent.parent
-            python_version = f'python{sys.version_info.major}.{sys.version_info.minor}'
-            return str(venv_path / 'lib' / python_version / 'site-packages')
-        except:
-            # 最后遍历sys.path
-            for path in sys.path:
-                if 'site-packages' in path:
-                    return path
-    return None
-
-# 添加虚拟环境路径
-venv_site_packages = get_venv_site_packages()
-if venv_site_packages and venv_site_packages not in sys.path:
-    sys.path.insert(0, venv_site_packages)
 
 import numpy as np
 from PIL import Image, ImageDraw, ImageFont
 
-# 导入GracyBot核心模块
-sys.path.append(os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))))
 from core.utils import logger
 from core.config import *
 
@@ -192,8 +163,8 @@ class GracyBotHelpDrawer:
     def _parse_plugin_commands_sorted_grouped(
         self, plugin_dict: Dict[str, Any]
     ) -> List[Tuple[str, List[Tuple[str, str | None]]]]:
-        # 是否显示内置指令
-        show_builtin_cmds = True  # 默认显示内置指令
+        # 是否显示内置指令（从配置读取）
+        show_builtin_cmds = self.config.get("show_builtin_cmds", {}).get("default", False) if isinstance(self.config.get("show_builtin_cmds"), dict) else self.config.get("show_builtin_cmds", False)
         if show_builtin_cmds:
             built_in_list = self._parse_single_command_list(self.BUILT_IN_COMMANDS_TEXT)
             built_in_plugin = ("内置指令", built_in_list) if built_in_list else None
@@ -204,8 +175,8 @@ class GracyBotHelpDrawer:
         for name, cmds_raw in plugin_dict.items():
             if name == "内置指令" or not cmds_raw:
                 continue
-             # 如果在黑名单里，跳过
-            plugin_blacklist = []  # 默认没有黑名单
+             # 如果在黑名单里，跳过（从配置读取）
+            plugin_blacklist = self.config.get("plugin_blacklist", {}).get("default", []) if isinstance(self.config.get("plugin_blacklist"), dict) else self.config.get("plugin_blacklist", [])
             if name in plugin_blacklist:
                 continue
             cmds = self._parse_single_command_list(cmds_raw)

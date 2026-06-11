@@ -2,7 +2,7 @@
 import time
 import platform
 import psutil
-from flask import Blueprint
+from quart import Blueprint
 
 dashboard_bp = Blueprint("dashboard", __name__, url_prefix="/api")
 
@@ -91,7 +91,7 @@ def _get_uptime() -> str:
 
 
 @dashboard_bp.route("/dashboard/system")
-def api_system():
+async def api_system():
     """系统资源：CPU / 内存 / 磁盘 / 运行时间 / 操作系统"""
     mem = psutil.virtual_memory()
     disk_used_gb, disk_total_gb = _get_all_disks_usage()
@@ -112,13 +112,13 @@ def api_system():
 
 
 @dashboard_bp.route("/dashboard/stats")
-def api_stats():
+async def api_stats():
     """仪表盘卡片数据：好友数 / 群聊数"""
     friend_count = 0
     group_count = 0
     try:
         from core.gracy_adapter.send import gracy_get_platform_info
-        info = gracy_get_platform_info()
+        info = await gracy_get_platform_info()
         friend_count = info.get("friend_count", 0) or 0
         group_count = info.get("group_count", 0) or 0
     except Exception:
@@ -127,7 +127,7 @@ def api_stats():
     try:
         from core.config import BOT_VERSION
     except Exception:
-        BOT_VERSION = "v1.9.2"
+        BOT_VERSION = os.environ.get("GRACY_BOT_VERSION", "unknown")
 
     return {
         "friend_count": friend_count,

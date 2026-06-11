@@ -1,0 +1,14 @@
+{
+  "api_key": "e1846e0d2a6146d0acf5175896609e9e.o5X7Sf1XeTZjShn3",
+  "model": "glm-4.7-flash",
+  "api_base": "https://open.bigmodel.cn/api/paas/v4/",
+  "vision_model": "qwen-vl-plus",
+  "vision_api_base": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+  "vision_enabled": true,
+  "max_context": 50,
+  "default_persona": "你是由GracyBot开发团队开发的AI助手，名为GracyBot AI。你可以帮助用户进行对话、回答问题、提供建议。你能够记忆上下文，理解用户需求，并根据设定的人设进行回复。你还可以根据用户约定的时间执行定时任务，如早安问候、提醒事项等。请始终保持友好、专业的态度。",
+  "poke_enabled": true,
+  "poke_ai_reply": true,
+  "poke_back": true,
+  "vision_api_key": ""
+}

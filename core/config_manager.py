@@ -1,13 +1,46 @@
 import os
 import json
 import logging
+from pathlib import Path
 from typing import Dict, Any, Optional, TypeVar, Generic
 
-# 配置文件路径
-CONFIG_FILE_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'config.json')
+# 配置文件路径：动态获取，确保使用时 CWD 才是最终值
+def _get_config_file_path() -> str:
+    home = os.environ.get("GRACYBOT_HOME", "").strip()
+    if home:
+        return os.path.join(home, 'config.json')
+    return os.path.join(os.getcwd(), 'config.json')
+
+# 延迟解析，首次 load() 时绑定实际路径
+CONFIG_FILE_PATH = None
+
 
 # 配置类型定义
 T = TypeVar('T')
+
+
+def deep_merge_config(base: dict, override: dict) -> dict:
+    """递归合并两个配置字典
+
+    规则：
+      - override 中已有的键，保留 override 的值（用户设置优先）
+      - base 中存在但 override 中不存在的键，从 base 补入
+      - 如果某个键在两个 dict 中都是 dict 类型，则递归合并
+
+    Args:
+        base: 默认配置字典
+        override: 用户当前配置字典
+
+    Returns:
+        合并后的新字典
+    """
+    result = base.copy()
+    for key, value in override.items():
+        if key in result and isinstance(result[key], dict) and isinstance(value, dict):
+            result[key] = deep_merge_config(result[key], value)
+        else:
+            result[key] = value
+    return result
 
 class ConfigItem(Generic[T]):
     """配置项类，支持类型转换和验证"""
@@ -46,6 +79,10 @@ class ConfigManager:
     
     def load(self) -> bool:
         """加载配置，优先级：环境变量 > 配置文件 > 默认值"""
+        # 延迟解析路径，确保使用当前 CWD
+        global CONFIG_FILE_PATH
+        if CONFIG_FILE_PATH is None:
+            CONFIG_FILE_PATH = _get_config_file_path()
         try:
             # 加载配置文件
             if os.path.exists(CONFIG_FILE_PATH):
@@ -231,6 +268,86 @@ class ConfigManager:
                 'required': item.required
             }
         return default_config
+
+    def _auto_update_config(self, default_config: dict) -> None:
+        """自动同步配置文件：首次创建、补新字段、保留用户值
+
+        每次启动都检查，但只在有变化时写回文件：
+          - 首次运行 → 创建默认 config.json
+          - 已有文件 → 比对 DEFAULT_CONFIG 结构，补新字段、同步 bot_version
+
+        在打印 Logo/版本号之前完成（由 core.config 导入时触发）。
+
+        Args:
+            default_config: 完整默认配置字典（来自 core/config.py 的 DEFAULT_CONFIG）
+        """
+        # 确保路径已解析
+        global CONFIG_FILE_PATH
+        if CONFIG_FILE_PATH is None:
+            CONFIG_FILE_PATH = _get_config_file_path()
+
+        # ── 1. 首次运行：配置文件不存在 ──
+        if not os.path.exists(CONFIG_FILE_PATH):
+            self._logger.info("🆕 首次运行，正在创建默认配置文件...")
+            first_config = default_config.copy()
+            try:
+                config_dir = os.path.dirname(CONFIG_FILE_PATH)
+                if config_dir:
+                    os.makedirs(config_dir, exist_ok=True)
+                with open(CONFIG_FILE_PATH, 'w', encoding='utf-8') as f:
+                    json.dump(first_config, f, ensure_ascii=False, indent=2)
+                self._file_config = first_config
+                # 立即用新文件内容刷新 ConfigItem 值
+                for key, item in self._config_items.items():
+                    if key in self._file_config:
+                        item.value = self._file_config[key]
+                self._logger.warning(f"⚠️ 首次运行！已创建默认配置文件: {CONFIG_FILE_PATH}")
+                self._logger.warning("💡 请编辑 config.json 填写 robot_id 和 master_id（你的QQ号）后重新启动")
+            except Exception as e:
+                self._logger.error(f"❌ 创建默认配置文件失败: {str(e)}", exc_info=True)
+            return
+
+        # ── 2. 已有配置文件：加载并比对 ──
+        try:
+            with open(CONFIG_FILE_PATH, 'r', encoding='utf-8') as f:
+                current_config = json.load(f)
+        except Exception as e:
+            self._logger.error(f"❌ 读取配置文件失败: {str(e)}")
+            return
+
+        # 合并：默认配置为 base，当前配置为 override（保留用户值）
+        merged = deep_merge_config(default_config, current_config)
+
+        # 只保留 default_config 中定义的字段，不写回未知键（防止 config.json 污染）
+        merged = {k: v for k, v in merged.items() if k in default_config}
+
+        # bot_version 始终从 DEFAULT_CONFIG 同步
+        if "bot_version" in default_config:
+            merged["bot_version"] = default_config["bot_version"]
+
+        # 检查是否有实际变化
+        if merged == current_config:
+            self._file_config = current_config
+            return  # 完全一致，无需更新
+
+        # 找出变化（用于日志）
+        added = [k for k in merged if k not in current_config]
+        changed = [k for k in merged if k in current_config and merged[k] != current_config[k] and k not in added]
+
+        if added:
+            self._logger.info(f"🔄 配置更新，新增字段: {added}")
+        if changed:
+            self._logger.info(f"🔄 配置同步字段: {changed}")
+
+        # 写回文件
+        try:
+            with open(CONFIG_FILE_PATH, 'w', encoding='utf-8') as f:
+                json.dump(merged, f, ensure_ascii=False, indent=2)
+            self._file_config = merged
+            self._logger.info("✅ 配置文件已同步")
+        except Exception as e:
+            self._logger.error(f"❌ 保存配置文件失败: {str(e)}", exc_info=True)
+            self._file_config = current_config  # 回退到原配置
 
 # 创建全局配置管理器实例
 config_manager = ConfigManager()

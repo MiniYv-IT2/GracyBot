@@ -1,6 +1,6 @@
 """登录认证 API"""
 import secrets
-from flask import Blueprint, request
+from quart import Blueprint, request
 
 auth_bp = Blueprint("auth", __name__, url_prefix="/api")
 
@@ -12,9 +12,9 @@ _tokens: set[str] = set()
 
 
 @auth_bp.route("/auth/login", methods=["POST"])
-def api_login():
+async def api_login():
     """POST /api/auth/login  body: {username, password}"""
-    data = request.get_json(silent=True) or {}
+    data = (await request.get_json(silent=True)) or {}
     password = data.get("password", "")
 
     if password == _DEFAULT_PASSWORD:
@@ -25,7 +25,7 @@ def api_login():
 
 
 @auth_bp.route("/auth/verify")
-def api_verify():
+async def api_verify():
     """GET /api/auth/verify?token=xxx"""
     token = request.args.get("token", "")
     return {"valid": token in _tokens}

@@ -12,11 +12,12 @@ import logging
 from datetime import datetime
 from typing import Tuple, List, Optional
 
-from core.config import MASTER_ID, ROBOT_ID
+from core.config import get_current_master_id
 from core.utils import logger
 from core.gracy_adapter.send import gracy_send_msg
 from core.gracy_adapter.message import GracyImage, GracyText
 from .core.draw import XiaoyuHelpDrawer
+import asyncio
 
 # 帮助图绘制器（模块级单例）
 _xiaoyu_drawer = None
@@ -107,82 +108,78 @@ def _validate_qq(qq: str) -> Tuple[bool, str]:
 
 
 def _update_config_json(key: str, value: str) -> bool:
-    """更新项目根 config.json 中的字段"""
-    config_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "config.json")
+    """使用框架配置管理器更新配置"""
     try:
-        with open(config_path, "r", encoding="utf-8") as f:
-            config = json.load(f)
-        config[key] = value
-        with open(config_path, "w", encoding="utf-8") as f:
-            json.dump(config, f, ensure_ascii=False, indent=2)
+        from core.plugin_manager import plugin_manager
+        plugin_manager.set_plugin_config("Xiaoyu_plugin", key, value)
         return True
     except Exception as e:
-        logger.error(f"[小禹插件] 更新 config.json 失败: {str(e)}")
+        logger.error(f"[小禹插件] 更新配置失败: {str(e)}")
         return False
 
 
 # ═══════════════ 主处理函数 ═══════════════
-def handle_xiaoyu(plugin_manager, gracy_send_msg, data, sender_id, chat_type, permission, log_func):
+async def handle_xiaoyu(plugin_manager, gracy_send_msg, data, sender_id, chat_type, permission, log_func):
     """小禹插件入口 — 7参数标准签名"""
     raw_msg = data.get("text", "").strip() if isinstance(data, dict) else str(data)
     target_id = str(data.get("raw_data", {}).get("user_id" if chat_type == "private" else "group_id", sender_id))
 
-    def _reply(text: str):
+    async def _reply(text: str):
         """统一回复：通过 GracyAdapter 适配层发送消息"""
         if text:
-            gracy_send_msg(target_id, GracyText(text=text), chat_type=chat_type)
+            await gracy_send_msg(target_id, GracyText(text=text), chat_type=chat_type)
 
     # ── 时间查询（所有人可用）──
     time_aliases = ["/查看时间", "/几点了", "/时间", "/时间查询", "/time"]
     if any(raw_msg.strip() == alias for alias in time_aliases):
-        _reply(_cmd_time(sender_id))
+        await _reply(_cmd_time(sender_id))
         return
 
     # ── 复读机（所有人可用）──
     if raw_msg.startswith("/复读 "):
         content = raw_msg[len("/复读 "):].strip()
         if content:
-            _reply(content)
+            await _reply(content)
         return
 
     # ── 小禹帮助（所有人可用，无斜杠）──
     if raw_msg.strip() == "小禹帮助":
-        _cmd_xiaoyu_help(target_id, chat_type, sender_id)
+        await _cmd_xiaoyu_help(target_id, chat_type, sender_id)
         return
 
     # ── 以下命令仅主人可用 ──
-    if str(sender_id) != str(MASTER_ID):
-        _reply("⚠️ 权限不足，仅主人可执行此操作")
+    if str(sender_id) != str(get_current_master_id()):
+        await _reply("⚠️ 权限不足，仅主人可执行此操作")
         return
 
     # ── 更改主人QQ ──
     if raw_msg.startswith("/更改主人"):
-        _reply(_cmd_change_master(raw_msg, sender_id))
+        await _reply(_cmd_change_master(raw_msg, sender_id))
         return
 
     # ── 更改机器人QQ ──
     if raw_msg.startswith("/更改机器人"):
-        _reply(_cmd_change_robot(raw_msg, sender_id))
+        await _reply(_cmd_change_robot(raw_msg, sender_id))
         return
 
     # ── 互换主人/机器人QQ ──
     if raw_msg.startswith("/互换主人"):
-        _reply(_cmd_swap_identity(raw_msg, sender_id))
+        await _reply(_cmd_swap_identity(raw_msg, sender_id))
         return
 
     # ── 黑名单管理 ──
     if raw_msg.startswith("/黑名单"):
-        _reply(_cmd_blacklist(raw_msg, sender_id))
+        await _reply(_cmd_blacklist(raw_msg, sender_id))
         return
 
     # ── 热重载开关 ──
     if raw_msg.startswith("/热重载"):
-        _reply(_cmd_hotreload(raw_msg, sender_id))
+        await _reply(_cmd_hotreload(raw_msg, sender_id))
         return
 
     # ── 安装插件依赖 ──
     if raw_msg.startswith("/安装依赖"):
-        _reply(_cmd_install_deps(raw_msg, sender_id))
+        await _reply(await _cmd_install_deps(raw_msg, sender_id))
         return
 
 
@@ -245,20 +242,17 @@ def _cmd_change_robot(raw_msg, sender_id) -> str:
 
 def _cmd_swap_identity(raw_msg, sender_id) -> str:
     """互换主人QQ和机器人QQ（防填反）"""
-    config_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "config.json")
     try:
-        with open(config_path, "r", encoding="utf-8") as f:
-            config = json.load(f)
-        old_master = str(config.get("master_id", ""))
-        old_robot = str(config.get("robot_id", ""))
+        from core.config_manager import config_manager
+        from core.plugin_manager import plugin_manager
+        old_master = str(config_manager.get("master_id", ""))
+        old_robot = str(config_manager.get("robot_id", ""))
         if not old_master or not old_robot:
             return "⚠️ 配置中缺少 master_id 或 robot_id，无法互换"
 
         # 互换
-        config["master_id"] = old_robot
-        config["robot_id"] = old_master
-        with open(config_path, "w", encoding="utf-8") as f:
-            json.dump(config, f, ensure_ascii=False, indent=2)
+        plugin_manager.set_plugin_config("Xiaoyu_plugin", "master_id", old_robot)
+        plugin_manager.set_plugin_config("Xiaoyu_plugin", "robot_id", old_master)
     except Exception as e:
         logger.error(f"[小禹插件] 互换身份失败: {str(e)}")
         return "❌ 配置文件读写失败，请检查权限"
@@ -438,7 +432,7 @@ def _write_hotreload_flag(enabled: bool):
         json.dump({"enabled": enabled}, f, ensure_ascii=False, indent=2)
 
 
-def _cmd_xiaoyu_help(target_id, chat_type, sender_id):
+async def _cmd_xiaoyu_help(target_id, chat_type, sender_id):
     """小禹帮助：生成帮助图片并发送（缓存覆盖）"""
     try:
         drawer = _get_drawer()
@@ -447,17 +441,17 @@ def _cmd_xiaoyu_help(target_id, chat_type, sender_id):
         with open(XIAOYU_HELP_IMG, "wb") as f:
             f.write(img_bytes)
         # 发送帮助图片（通过 GracyAdapter 适配层）
-        gracy_send_msg(target_id, GracyImage(file_path=XIAOYU_HELP_IMG), chat_type=chat_type)
+        await gracy_send_msg(target_id, GracyImage(file_path=XIAOYU_HELP_IMG), chat_type=chat_type)
         logger.info(f"[小禹插件] 用户 {_safe_id(sender_id)} 查看了小禹帮助")
     except Exception as e:
         logger.error(f"[小禹插件] 生成帮助图片失败: {str(e)}")
-        gracy_send_msg(target_id, GracyText(text="⚠️ 生成帮助图片失败，请联系管理员"), chat_type=chat_type)
+        await gracy_send_msg(target_id, GracyText(text="⚠️ 生成帮助图片失败，请联系管理员"), chat_type=chat_type)
 
 
-def _cmd_install_deps(raw_msg: str, sender_id: str) -> str:
+async def _cmd_install_deps(raw_msg: str, sender_id: str) -> str:
     """安装指定插件的依赖：/安装依赖 <插件目录名>（仅主人）"""
-    import subprocess
     import sys as _sys
+    import asyncio
     parts = raw_msg.split(maxsplit=1)
     if len(parts) < 2:
         return "⚠️ 用法：/安装依赖 <插件目录名>\n示例：/安装依赖 Easysearch"
@@ -486,20 +480,22 @@ def _cmd_install_deps(raw_msg: str, sender_id: str) -> str:
 
     logger.info(f"[小禹插件] 主人 {_safe_id(sender_id)} 正在为插件 {plugin_dirname} 安装依赖：{deps}")
 
-    # 执行 pip install
+    # 执行 pip install（异步）
     try:
-        result = subprocess.run(
-            [_sys.executable, "-m", "pip", "install", "-r", req_file],
-            capture_output=True, text=True, timeout=120
+        proc = await asyncio.create_subprocess_exec(
+            _sys.executable, "-m", "pip", "install", "-r", req_file,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE
         )
-        if result.returncode == 0:
+        stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=120)
+        if proc.returncode == 0:
             logger.info(f"[小禹插件] 插件 {plugin_dirname} 依赖安装成功")
             return f"✅ 插件「{plugin_dirname}」依赖安装成功！\n已安装：{', '.join(deps)}"
         else:
-            err_msg = result.stderr.strip().split("\n")[-1] if result.stderr else "未知错误"
+            err_msg = stderr.decode("utf-8", errors="ignore").strip().split("\n")[-1] if stderr else "未知错误"
             logger.error(f"[小禹插件] 插件 {plugin_dirname} 依赖安装失败: {err_msg}")
             return f"❌ 依赖安装失败：{err_msg}"
-    except subprocess.TimeoutExpired:
+    except asyncio.TimeoutError:
         logger.error(f"[小禹插件] 插件 {plugin_dirname} 依赖安装超时")
         return "❌ 安装超时（超过 120 秒），请检查网络或手动安装"
     except Exception as e:

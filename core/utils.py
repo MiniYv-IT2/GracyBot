@@ -1,4 +1,3 @@
-import requests
 import json
 import logging
 from typing import Optional, Dict, Any
@@ -35,7 +34,7 @@ def add_sanitize_filter_to_loggers():
     root_logger.addFilter(sanitize_filter)
     
     # 添加到主要日志器
-    for logger_name in ['GracyBot', 'Gracy', 'GracyBot-Plugin', 'Gracy.Send', 'GracyOneBotWS']:
+    for logger_name in ['GracyBot', 'Gracy', 'GracyBot-Plugin', 'Gracy.Send', 'GracyOneBotWS', 'GracyPipeline', 'GracyEvent']:
         named_logger = logger_manager.get_logger(logger_name)
         named_logger.addFilter(sanitize_filter)
 

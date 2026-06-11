@@ -1,11 +1,12 @@
-"""GracyBot 核心主模块 — 所有应用逻辑（Flask、路由、启动、关闭）"""
+"""GracyBot 核心主模块 — 应用逻辑（Quart 异步路由、启动、关闭）"""
+import asyncio
 import multiprocessing
 try:
     multiprocessing.set_start_method('spawn')
 except RuntimeError:
     pass
 
-from flask import Flask, request, jsonify
+from quart import Quart, request, jsonify
 import json
 import os
 import threading
@@ -14,28 +15,183 @@ import sys
 import traceback
 import logging
 
-from core.config import ROBOT_ID, CALLBACK_PORT, MASTER_ID, BOT_VERSION
-from core.handler import callback_base, dispatch_plugin_cmd
-from core.plugin_manager import plugin_manager, PLUGIN_REGISTRY
+from core.config import CALLBACK_PORT, BOT_VERSION
+from core.handler import callback_base
+from core.plugin_manager import plugin_manager
 from core.utils import logger, logger_manager  # 复用utils全局日志和消息工具
-from core.gracy_adapter.onebot.sanitize import is_cq_raw_message
 from core.gracy_adapter.send import gracy_send_msg
 from core.gracy_adapter.message import GracyText
 from core.config_manager import config_manager
 from core.monitor import monitor_manager, register_health_check_routes
+from core.gracy_adapter.pool import adapter_pool
+from core.gracy_adapter.identity import IdentityTag
+from core.event import event_bus
 
-# ========== Flask应用初始化 ==========
-app = Flask(__name__)
-# 彻底关闭Werkzeug请求日志
-for _log_name in ('werkzeug', 'werkzeug.serving'):
-    _wk_log = logging.getLogger(_log_name)
-    _wk_log.disabled = True
-    _wk_log.setLevel(logging.CRITICAL)
-    _wk_log.handlers = []
+def _resolve_plugins_dir() -> str:
+    """自动确定插件目录路径
+
+    优先级: GRACYBOT_HOME > CWD(bot.py) > site-packages > CWD
+    """
+    # 1. GRACYBOT_HOME
+    root = os.environ.get("GRACYBOT_HOME", "").strip()
+    if root:
+        p = os.path.join(root, "plugins")
+        if os.path.exists(p):
+            return p
+
+    # 2. CWD 有 bot.py（本地项目）
+    cwd = os.getcwd()
+    if os.path.exists(os.path.join(cwd, "bot.py")):
+        p = os.path.join(cwd, "plugins")
+        if os.path.exists(p):
+            return p
+
+    # 3. pip 安装目录的 plugins/
+    try:
+        import core as _core_mod
+        _core_dir = os.path.dirname(os.path.abspath(_core_mod.__file__))
+        _site_pkg = os.path.dirname(_core_dir)
+        p = os.path.join(_site_pkg, "plugins")
+        if os.path.exists(p):
+            return p
+    except Exception:
+        pass
+
+    # 4. 回退 CWD/plugins
+    return os.path.join(cwd, "plugins")
+
+
+# ========== Quart 应用初始化 ==========
+app = Quart(__name__)
+
+
+# ── 实例配置路径 ──
+
+def _instances_dir() -> str:
+    """返回 style/instances 目录的绝对路径"""
+    base = os.environ.get("GRACYBOT_HOME", os.getcwd())
+    return os.path.join(base, "style", "instances")
+
+
+def _discover_instance_configs() -> list[dict]:
+    """扫描 style/instances/<name>/config.json，返回所有启用的实例配置列表"""
+    inst_dir = _instances_dir()
+    if not os.path.isdir(inst_dir):
+        logger.warning(f"⚠️ 实例目录不存在: {inst_dir}")
+        return []
+
+    results = []
+    for entry in sorted(os.listdir(inst_dir)):
+        cfg_path = os.path.join(inst_dir, entry, "config.json")
+        if not os.path.isfile(cfg_path):
+            continue
+        try:
+            with open(cfg_path, "r", encoding="utf-8") as f:
+                cfg = json.load(f)
+            if not cfg.get("enabled", True):
+                logger.info(f"  ⏭️ 实例 {entry} 已禁用，跳过")
+                continue
+            cfg["_dir_name"] = entry
+            cfg["_config_path"] = cfg_path
+            results.append(cfg)
+        except Exception as e:
+            logger.error(f"❌ 加载实例配置失败 {cfg_path}: {e}")
+
+    return results
+
+
+def _register_instance(cfg: dict, default: bool = False) -> None:
+    """根据实例配置创建一个适配器并注册到池"""
+    platform = cfg.get("platform", "onebot")
+    bot_name = cfg.get("bot_name", cfg.get("_dir_name", "unknown"))
+    robot_id = cfg.get("robot_id", "")
+    master_id = cfg.get("master_id", "")
+    from core.config import MASTER_ID as _fallback_master
+    if not master_id and _fallback_master:
+        master_id = _fallback_master
+    tag = IdentityTag(platform=platform, bot_name=bot_name)
+
+    conn_type = cfg.get("type", "http")
+
+    if platform == "onebot":
+        if conn_type in ("ws_forward", "ws_reverse"):
+            from core.gracy_adapter.onebot.ws import GracyOneBotWS
+            ws_mode = "forward" if conn_type == "ws_forward" else "reverse"
+            adapter = GracyOneBotWS(
+                mode=ws_mode,
+                host=cfg.get("host", "127.0.0.1"),
+                port=cfg.get("port", 3001),
+                access_token=cfg.get("access_token", ""),
+                robot_id=robot_id,
+            )
+        else:
+            from core.gracy_adapter.onebot.http import GracyOneBot
+            adapter = GracyOneBot(
+                napcat_url=cfg.get("http_url", "http://127.0.0.1:3000"),
+                callback_port=cfg.get("callback_port", CALLBACK_PORT),
+                robot_id=robot_id,
+            )
+    else:
+        logger.warning(f"⚠️ 不支持的平台: {platform}（实例 {cfg.get('_dir_name', '?')}），跳过")
+        return
+
+    adapter.tag = tag
+    # 将 master_id 挂在适配器上，供 handler 等模块按实例查询
+    adapter._instance_master_id = master_id
+    adapter._instance_robot_id = robot_id
+    adapter_pool.register(adapter, tag, default=default)
+    logger.info(f"  ➕ [{tag.log_tag}] {platform}/{bot_name} ({conn_type}) master={master_id[:4]}****")
+
+
+# ── HTTP 事件解析器池（按 self_id/robot_id 索引，支持多 QQ 号路由） ──
+
+_http_parsers: dict[str, "GracyOneBot"] = {}
+
+def _get_parser_by_self_id(self_id: str):
+    """根据 self_id 查找对应的适配器并返回事件解析器
+
+    遍历 AdapterPool 中的适配器，匹配 _instance_robot_id == self_id，
+    命中后缓存在 _http_parsers 字典中避免重复创建。
+    未命中时回退到默认适配器。
+    """
+    # 优先从缓存取
+    if self_id and self_id in _http_parsers:
+        return _http_parsers[self_id]
+
+    # 遍历池查找匹配的适配器
+    target_adapter = None
+    target_tag = None
+    target_robot_id = self_id
+    for adapter, tag in adapter_pool._adapters.values():
+        rid = getattr(adapter, '_instance_robot_id', '')
+        if rid and self_id and str(rid) == str(self_id):
+            target_adapter = adapter
+            target_tag = tag
+            target_robot_id = str(rid)
+            break
+
+    # 未命中，回退到默认适配器
+    if not target_adapter:
+        default = adapter_pool.get_default()
+        if default is None:
+            return None
+        target_adapter = default
+        target_tag = adapter_pool.get_default_tag()
+        target_robot_id = getattr(default, '_instance_robot_id', '')
+
+    # 创建解析器并缓存
+    from core.gracy_adapter.onebot.http import GracyOneBot
+    parser = GracyOneBot(robot_id=target_robot_id)
+    # 把适配器和 tag 挂上去方便外部访问 tag / master_id
+    parser._adapter = target_adapter
+    parser._source_tag = target_tag
+    if target_robot_id:
+        _http_parsers[target_robot_id] = parser
+    return parser
 
 
 @app.route('/callback', methods=['POST'])
-def callback():
+async def callback():
     context = {
         'client_ip': request.remote_addr,
         'request_id': str(time.time())[-6:],
@@ -56,7 +212,7 @@ def callback():
 
         # 获取并验证JSON数据
         try:
-            json_data = request.get_json()
+            json_data = await request.get_json()
             if json_data is None:
                 error_msg = "请求体无法解析为JSON格式"
                 logger_manager.log_with_context(logger, logging.ERROR, error_msg, context)
@@ -72,9 +228,34 @@ def callback():
         if json_data.get("post_type") == "meta_event":
             return jsonify({"retcode": 0})
 
-        # 调用基础处理函数
+        # ── 根据 self_id 路由到对应适配器实例 ──
+        self_id = str(json_data.get("self_id", ""))
+        parser = _get_parser_by_self_id(self_id)
+        http_event = parser.parse_event(json_data) if parser else None
+
+        if http_event:
+            # 标记事件来源适配器（供 Pipeline 权限、多实例路由使用）
+            if parser and hasattr(parser, '_source_tag') and parser._source_tag:
+                http_event.source = parser._source_tag
+
+            # 过滤机器人自身消息（使用该适配器实例的 robot_id）
+            parser_robot_id = getattr(parser, '_robot_id', '') if parser else ''
+            if http_event.sender_id and parser_robot_id and str(http_event.sender_id) == str(parser_robot_id):
+                return jsonify({"retcode": 0})
+            # ── EventBus 发布（异步，不阻塞 HTTP 响应） ──
+            try:
+                await event_bus.publish(http_event)
+            except Exception as e:
+                logger_manager.log_with_context(
+                    logger, logging.WARNING, f"EventBus 发布失败: {e}", context
+                )
+        else:
+            # parse_event 返回 None（非消息事件、自回显等），直接响应
+            return jsonify({"retcode": 0})
+
+        # 调用基础处理函数（验证 + 过滤）
         try:
-            parsed_data = callback_base()
+            parsed_data = await callback_base()
         except TimeoutError:
             error_msg = "处理超时"
             logger_manager.log_with_context(logger, logging.ERROR, error_msg, context, exc_info=True)
@@ -96,44 +277,14 @@ def callback():
             monitor_manager.record_message_error()
             return jsonify({"retcode": 500, "msg": "处理过程异常"}), 500
 
-        # 分发命令处理
+        # callback_base 验证通过 → 返回成功（Pipeline 已异步处理）
         if isinstance(parsed_data, dict):
-            try:
-                ret = dispatch_plugin_cmd(parsed_data)
-                processing_time = time.time() - start_time
-                monitor_manager.record_message_processed(processing_time)
-                # 解包：dispatch 现在返回 (response, handled) 或 (response, status, handled)
-                if len(ret) == 3:
-                    result, status_code, handled = ret
-                else:
-                    result, handled = ret
-                    status_code = None
-
-                if handled:
-                    logger.info('请求处理成功')
-                else:
-                    raw_msg = parsed_data.get("raw_msg", "")
-                    # 只在消息以已注册指令开头时记录失败（白名单 + startswith，避免 CQ 码误触）
-                    # 跳过 CQ 码（系统消息）和 // 前缀（AI 聊天触发器）
-                    if not is_cq_raw_message(raw_msg):
-                        builtin_cmds = {"/关机", "/重启", "/开机", "/关于"}
-                        all_cmds = set(builtin_cmds)
-                        for p in PLUGIN_REGISTRY:
-                            for cmd in p.get("commands", []):
-                                if cmd != "//":  # AI 触发前缀，非传统指令
-                                    all_cmds.add(cmd)
-                        if any(raw_msg.startswith(cmd) for cmd in all_cmds):
-                            logger.info(f'指令未匹配任何插件: {raw_msg[:30]}')
-
-                if status_code is not None:
-                    return result, status_code
-                return result
-            except Exception as dispatch_err:
-                error_msg = f"命令分发异常: {str(dispatch_err)}"
-                logger_manager.log_with_context(logger, logging.ERROR, error_msg, context, exc_info=True)
-                monitor_manager.record_message_error()
-                return jsonify({"retcode": 500, "msg": "服务繁忙，请稍后再试"}), 500
+            processing_time = time.time() - start_time
+            monitor_manager.record_message_processed(processing_time)
+            logger.info('请求处理成功（Pipeline 异步）')
+            return jsonify({"retcode": 0})
         else:
+            # callback_base 返回了错误响应（如频率超限、验证失败等）
             processing_time = time.time() - start_time
             monitor_manager.record_message_processed(processing_time)
             return parsed_data
@@ -149,7 +300,9 @@ def callback():
             error_notify += f"时间: {time.strftime('%Y-%m-%d %H:%M:%S')}\n"
             error_notify += f"错误: {str(e)}\n"
             error_notify += f"类型: {type(e).__name__}\n"
-            gracy_send_msg(MASTER_ID, GracyText(text=error_notify), chat_type="private")
+            from core.config import MASTER_ID as _m
+            if _m:
+                await gracy_send_msg(_m, GracyText(text=error_notify), chat_type="private")
         except:
             pass
 
@@ -159,7 +312,7 @@ def callback():
 def setup_error_handlers():
 
     @app.errorhandler(404)
-    def not_found(error):
+    async def not_found(error):
         context = {
             'client_ip': request.remote_addr,
             'path': request.path,
@@ -169,7 +322,7 @@ def setup_error_handlers():
         return jsonify({"retcode": 404, "msg": "接口不存在"}), 404
 
     @app.errorhandler(405)
-    def method_not_allowed(error):
+    async def method_not_allowed(error):
         context = {
             'client_ip': request.remote_addr,
             'path': request.path,
@@ -179,7 +332,7 @@ def setup_error_handlers():
         return jsonify({"retcode": 405, "msg": "不支持的请求方法"}), 405
 
     @app.errorhandler(Exception)
-    def handle_exception(error):
+    async def handle_exception(error):
         """处理所有未捕获的异常"""
         context = {
             'client_ip': request.remote_addr,
@@ -195,19 +348,50 @@ def setup_error_handlers():
         return jsonify({"retcode": 500, "msg": "服务器内部错误"}), 500
 
 
+async def _send_welcome_msg(welcome_msg: str, target: str = ""):
+    """异步发送启动欢迎消息"""
+    try:
+        if not target:
+            # 兜底：从池获取
+            default = adapter_pool.get_default()
+            if default and hasattr(default, '_instance_master_id'):
+                target = str(default._instance_master_id)
+        if not target or not target.isdigit():
+            logger.warning("⏭️ master_id 未配置，跳过发送启动消息")
+            return
+        await asyncio.sleep(1)
+        await gracy_send_msg(target, GracyText(text=welcome_msg), chat_type="private")
+    except Exception as e:
+        logger.error(f"❌ 发送启动消息失败: {str(e)}")
+
+
 def safe_shutdown(signum=None, frame=None):
     """安全关闭服务"""
-    # 使用logger_manager直接记录，确保与gracybot.log格式一致
     logger_manager.log_with_context(logger, logging.INFO, "🔄 正在安全关闭服务...")
 
-    # 通知管理员
     try:
-        # 处理版本号格式，避免双v问题
         version = BOT_VERSION.removeprefix('v')
         shutdown_msg = f"🛑 GracyBot v{version} 正在关闭\n"
         shutdown_msg += f"时间: {time.strftime('%Y-%m-%d %H:%M:%S')}"
-        gracy_send_msg(MASTER_ID, GracyText(text=shutdown_msg), chat_type="private")
-    except:
+        # 从实例获取 master_id
+        _shutdown_target = ""
+        try:
+            default = adapter_pool.get_default()
+            if default and hasattr(default, '_instance_master_id'):
+                _shutdown_target = str(default._instance_master_id)
+        except Exception:
+            pass
+        if _shutdown_target:
+            try:
+                loop = asyncio.get_event_loop()
+                if loop.is_running():
+                    asyncio.run_coroutine_threadsafe(
+                        gracy_send_msg(_shutdown_target, GracyText(text=shutdown_msg), chat_type="private"),
+                        loop
+                    )
+            except Exception:
+                pass
+    except Exception:
         pass
 
     # 清理资源
@@ -228,7 +412,10 @@ def safe_shutdown(signum=None, frame=None):
 
 def _load_hotreload_config() -> bool:
     """读取热重载开关标记，默认开启"""
-    _flag = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "hotreload.json")
+    _project_root = os.environ.get("GRACYBOT_HOME", "")
+    if not _project_root:
+        _project_root = os.getcwd()
+    _flag = os.path.join(_project_root, "hotreload.json")
     try:
         if os.path.exists(_flag):
             with open(_flag, "r", encoding="utf-8") as f:
@@ -301,8 +488,12 @@ def _interactive_connection_setup():
     try:
         import json as _json
 
+        _project_root = os.environ.get("GRACYBOT_HOME", "")
+        if not _project_root:
+            _project_root = os.getcwd()
+
         # 框架配置写入 config.json（connection_mode 属于启动路由）
-        config_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "config.json")
+        config_path = os.path.join(_project_root, "config.json")
         if os.path.exists(config_path):
             with open(config_path, "r", encoding="utf-8") as f:
                 cfg = _json.load(f)
@@ -317,8 +508,8 @@ def _interactive_connection_setup():
         # OneBot 适配器配置写入 onebot_config.json
         if mode in ("ws_forward", "ws_reverse"):
             onebot_config_path = os.path.join(
-                os.path.dirname(os.path.abspath(__file__)),
-                "gracy_adapter", "onebot", "onebot_config.json"
+                _project_root,
+                "core", "gracy_adapter", "onebot", "onebot_config.json"
             )
             if os.path.exists(onebot_config_path):
                 with open(onebot_config_path, "r", encoding="utf-8") as f:
@@ -345,7 +536,37 @@ def _interactive_connection_setup():
         os.environ["GRACY_CONNECTION_MODE"] = mode
 
 
-def _parse_cli_args():
+def _init_instances() -> None:
+    """扫描 style/instances/ 目录，加载所有实例配置并注册到 AdapterPool"""
+    configs = _discover_instance_configs()
+    if not configs:
+        logger.warning("⚠️ 未发现任何实例配置（style/instances/<name>/config.json）")
+        logger.warning("💡 使用 gracy instance add <name> 创建实例")
+        return
+
+    for idx, cfg in enumerate(configs):
+        try:
+            _register_instance(cfg, default=(idx == 0))
+        except Exception as e:
+            logger.error(f"❌ 注册实例失败 {cfg.get('_dir_name', '?')}: {e}")
+
+    count = adapter_pool.count
+    logger.info(f"✅ 实例池初始化完成: {count} 个适配器")
+
+    # 向后兼容：更新 config.ROBOT_ID / MASTER_ID 供旧插件导入
+    default = adapter_pool.get_default()
+    if default:
+        rid = getattr(default, '_instance_robot_id', '')
+        if rid:
+            from core.config import _update_robot_id
+            _update_robot_id(rid)
+        mid = getattr(default, '_instance_master_id', '')
+        if mid:
+            from core.config import _update_master_id
+            _update_master_id(mid)
+
+
+def _parse_cli_args() -> None:
     """解析命令行参数，通过环境变量传递给 config_manager"""
     args = sys.argv[1:]
     i = 0
@@ -373,192 +594,174 @@ def _parse_cli_args():
         i += 1
 
 
-def run_bot():
-    """完整的启动流程 — 由 bot.py 入口调用"""
+async def run_bot():
+    """完整的启动流程 — 由 bot.py 入口调用（100% 原生异步）"""
     _parse_cli_args()  # 先解析命令行参数（设置环境变量）
     _interactive_connection_setup()  # 首次运行引导（小白友好）
-    _hotreload_enabled = _load_hotreload_config()
-    _is_worker = os.environ.get("WERKZEUG_RUN_MAIN") == "true"
 
-    # 热重载关闭时无父子进程之分，本进程即是 worker，必须走完整初始化
-    if not _hotreload_enabled:
-        _is_worker = True
-    # WS 模式没有 Werkzeug 父子进程，热重载标记不适用，直接走完整初始化
-    elif config_manager.get("connection_mode", "http") not in ("http", "http_reverse"):
-        _is_worker = True
+    # ═══════════════ 初始化（无 werkzeug 父子进程，直接执行）═══════════════
+    # 打印彩色 Logo
+    try:
+        _project_root = os.environ.get("GRACYBOT_HOME", "")
+        if not _project_root:
+            _project_root = os.getcwd()
+        sys.path.insert(0, os.path.join(_project_root, "style"))
+        from style.gracybot_logo import GracyBotLogo
+        GracyBotLogo(force_color=True).print_logo()
+    except Exception:
+        pass
 
-    # ═══════════════ 子进程：完整初始化（父进程跳过）═══════════════
-    if _is_worker:
-        # 打印彩色 Logo（仅此一处决策，不再散落在 logger_manager 中）
-        try:
-            sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(__file__)), "style"))
-            from style.gracybot_logo import GracyBotLogo
-            GracyBotLogo(force_color=True).print_logo()
-        except Exception:
-            pass
+    # 注册信号处理
+    try:
+        import signal
+        signal.signal(signal.SIGINT, safe_shutdown)
+        signal.signal(signal.SIGTERM, safe_shutdown)
+    except (ImportError, AttributeError):
+        logger.warning("⚠️ 信号处理在当前环境可能不可用")
 
-        # 注册信号处理
-        try:
-            import signal
-            signal.signal(signal.SIGINT, safe_shutdown)
-            signal.signal(signal.SIGTERM, safe_shutdown)
-        except (ImportError, AttributeError):
-            logger.warning("⚠️ 信号处理在当前环境可能不可用")
+    # 1. 初始化配置
+    try:
+        config_manager.load()
+        logger.info("✅ 配置加载完成")
+    except Exception as e:
+        logger.error(f"❌ 配置加载失败: {str(e)}")
+        logger.warning("⚠️ 尝试使用默认配置继续启动")
 
-        # 1. 初始化配置
-        try:
-            config_manager.load()
-            logger.info("✅ 配置加载完成")
-        except Exception as e:
-            logger.error(f"❌ 配置加载失败: {str(e)}")
-            logger.warning("⚠️ 尝试使用默认配置继续启动")
+    # 1.1 刷新安全配置
+    try:
+        from core.security_manager import security_manager
+        security_manager.refresh_config()
+        logger.info("✅ 安全配置已刷新")
+    except Exception as e:
+        logger.error(f"❌ 安全配置刷新失败: {str(e)}")
 
-        # 1.1 刷新安全配置
-        try:
-            from core.security_manager import security_manager
-            security_manager.refresh_config()
-            logger.info("✅ 安全配置已刷新")
-        except Exception as e:
-            logger.error(f"❌ 安全配置刷新失败: {str(e)}")
+    # 2. 初始化插件管理器
+    try:
+        _plugin_dir = _resolve_plugins_dir()
+        plugin_manager.init(plugin_dir=_plugin_dir)
+        logger.info(f"✅ 插件管理器初始化完成（{_plugin_dir}）")
+    except Exception as e:
+        logger.error(f"❌ 插件管理器初始化失败: {str(e)}")
+        logger.warning("⚠️ 部分插件可能无法正常工作")
 
-        # 2. 初始化插件管理器
-        try:
-            plugin_manager.init()
-            logger.info("✅ 插件管理器初始化完成")
-        except Exception as e:
-            logger.error(f"❌ 插件管理器初始化失败: {str(e)}")
-            logger.warning("⚠️ 部分插件可能无法正常工作")
+    # 2.1 扫描所有实例配置并注册到适配器池
+    _init_instances()
 
-        # 3. 设置错误处理器
-        try:
-            setup_error_handlers()
-            logger.info("✅ 错误处理器设置完成")
-        except Exception as e:
-            logger.error(f"❌ 设置错误处理器失败: {str(e)}")
+    # 3. 设置错误处理器
+    try:
+        setup_error_handlers()
+        logger.info("✅ 错误处理器设置完成")
+    except Exception as e:
+        logger.error(f"❌ 设置错误处理器失败: {str(e)}")
 
-        # 4. 注册健康检查路由
-        try:
-            register_health_check_routes(app)
-            logger.info("✅ 健康检查路由注册完成")
-        except Exception as e:
-            logger.error(f"❌ 注册健康检查路由失败: {str(e)}")
+    # 4. 注册健康检查路由
+    try:
+        register_health_check_routes(app)
+        logger.info("✅ 健康检查路由注册完成")
+    except Exception as e:
+        logger.error(f"❌ 注册健康检查路由失败: {str(e)}")
 
-        # 5. 显示启动信息
-        version_display = BOT_VERSION.removeprefix('v')
-        conn_mode = config_manager.get("connection_mode", "http")
-        logger.info(f"\n====== GracyBot v{version_display} 启动 ======")
-        logger.info(f"📌 Bot ID：{ROBOT_ID} | 管理员 ID:{MASTER_ID}")
-        if conn_mode in ("http", "http_reverse"):
-            logger.info(f"📡 连接模式：HTTP 回调 → http://localhost:{CALLBACK_PORT}/callback")
-        elif conn_mode == "ws_forward":
-            logger.info(f"🔗 连接模式：WS 正向 → ws://{config_manager.get('ws_host','127.0.0.1')}:{config_manager.get('ws_port',3001)}")
-        elif conn_mode == "ws_reverse":
-            logger.info(f"🔗 连接模式：WS 反向 → 监听 {config_manager.get('ws_host','0.0.0.0')}:{config_manager.get('ws_port',8080)}")
-        logger.info(f"✅ 所有初始化完成，等待消息...\n")
-
-        # 6. 启动提醒消息
-        try:
-            welcome_msg = f"🎉 GracyBot v{version_display} 启动成功！\n"
-            welcome_msg += f"📌 功能说明：\n"
-            welcome_msg += f"  • 私聊//+内容触发AI聊天\n"
-            welcome_msg += f"  • 群聊@机器人+内容 或 //+内容触发回复\n"
-            welcome_msg += f"  • 输入对应指令使用插件功能（如/运行状态）"
-            threading.Timer(1, lambda w=welcome_msg: gracy_send_msg(MASTER_ID, GracyText(text=w), chat_type="private")).start()
-        except Exception as e:
-            logger.error(f"❌ 发送启动消息失败: {str(e)}")
+    # 5. 显示启动信息
+    version_display = BOT_VERSION.removeprefix('v')
+    conn_mode = config_manager.get("connection_mode", "http")
+    logger.info(f"====== GracyBot v{version_display} 启动 ======")
+    instance_count = adapter_pool.count
+    # 显示第一个实例的 master_id 作为管理员信息
+    default = adapter_pool.get_default()
+    show_master = ""
+    if default and hasattr(default, '_instance_master_id'):
+        mid = default._instance_master_id
+        if mid:
+            show_master = f"{mid[:4]}****" if len(mid) > 4 else mid
+    logger.info(f"📌 已注册 {instance_count} 个实例 | 管理员 ID:{show_master}")
+    if conn_mode in ("http", "http_reverse"):
+        logger.info(f"📡 连接模式：HTTP 回调 → http://localhost:{CALLBACK_PORT}/callback")
+    elif conn_mode == "ws_forward":
+        logger.info(f"🔗 连接模式：WS 正向 → ws://{config_manager.get('ws_host','127.0.0.1')}:{config_manager.get('ws_port',3001)}")
+    elif conn_mode == "ws_reverse":
+        logger.info(f"🔗 连接模式：WS 反向 → 监听 {config_manager.get('ws_host','0.0.0.0')}:{config_manager.get('ws_port',8080)}")
+    logger.info(f"✅ 所有初始化完成，等待消息...\n")
 
     # ═══════════════ 根据连接模式启动 ═══════════════
     conn_mode = config_manager.get("connection_mode", "http")
 
     if conn_mode in ("http", "http_reverse"):
-        # ── HTTP 回调模式（现有 Flask 路径）──
-        from werkzeug.serving import run_simple, WSGIRequestHandler
-        import glob as _glob
-        WSGIRequestHandler.log = lambda self, type, msg, *args: None
-        app.config['PROPAGATE_EXCEPTIONS'] = True
+        # ── HTTP 回调模式（Quart + hypercorn）──
+        # 启动所有已注册的适配器（由 _init_instances 注册到池）
+        try:
+            adapter_pool.start_all(lambda e: asyncio.create_task(event_bus.publish(e)))
+            logger.info("✅ 实例池已启动")
+        except Exception as e:
+            logger.warning(f"⚠️ 实例池启动异常: {e}")
 
-        _extra_files = []
-        _plugins_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "plugins")
-        if os.path.isdir(_plugins_dir):
-            _extra_files = _glob.glob(os.path.join(_plugins_dir, "**", "*.py"), recursive=True)
+        # 触发 on_ready 钩子（插件通过 plugin_manager.register_on_ready 注册）
+        try:
+            plugin_manager.trigger_on_ready()
+        except Exception as e:
+            logger.warning(f"⚠️ on_ready 钩子触发失败: {e}")
 
-        if not _is_worker:
-            logger.info(f"🔄 热重载已启用 — 修改代码后自动重启（监听 {len(_extra_files)} 个插件文件）")
-        elif not _hotreload_enabled:
-            logger.info("⚪ 热重载已关闭 — 代码修改需手动重启生效")
+        # 发送启动消息（适配器已就绪）
+        # 检查是否首次运行（占位符值），跳过发送避免无效报错
+        _master_to_check = ""
+        if default and hasattr(default, '_instance_master_id'):
+            _master_to_check = str(default._instance_master_id)
+        _is_first_run = not _master_to_check.isdigit()
+        if _is_first_run:
+            logger.warning("⏭️ 首次运行，跳过发送启动消息（请先编辑 config.json 填写 QQ 号）")
+        else:
+            try:
+                welcome_msg = f"🎉 GracyBot v{version_display} 启动成功！\n"
+                welcome_msg += f"📌 功能说明：\n"
+                welcome_msg += f"  • 私聊//+内容触发AI聊天\n"
+                welcome_msg += f"  • 群聊@机器人+内容 或 //+内容触发回复\n"
+                welcome_msg += f"  • 输入对应指令使用插件功能（如/运行状态）"
+                asyncio.create_task(_send_welcome_msg(welcome_msg, target=_master_to_check))
+            except Exception as e:
+                logger.error(f"❌ 发送启动消息失败: {str(e)}")
+
+        # 发送失败通知也用实例 master_id
+        _fail_target = _master_to_check
 
         try:
-            run_simple('0.0.0.0', CALLBACK_PORT, app, use_reloader=_hotreload_enabled, use_debugger=False,
-                       extra_files=_extra_files if _hotreload_enabled else [])
+            from hypercorn.config import Config
+            from hypercorn.asyncio import serve
+
+            cfg = Config()
+            cfg.bind = [f"0.0.0.0:{CALLBACK_PORT}"]
+            cfg.loglevel = "warning"
+
+            await serve(app, cfg)
         except Exception as e:
             logger.critical(f"❌ 服务启动失败: {str(e)}", exc_info=True)
-            if _is_worker:
-                try:
-                    gracy_send_msg(MASTER_ID, GracyText(text=f"❌ GracyBot 启动失败\n错误: {str(e)}"), chat_type="private")
-                except:
-                    pass
+            try:
+                if _fail_target:
+                    await gracy_send_msg(_fail_target, GracyText(text=f"❌ GracyBot 启动失败\n错误: {str(e)}"), chat_type="private")
+            except:
+                pass
             sys.exit(1)
 
     else:
         # ── WebSocket 模式 ──
-        from core.gracy_adapter.onebot.ws import GracyOneBotWS
-        from core.gracy_adapter.send import set_adapter
-        from core.handler import dispatch_plugin_cmd, process_event_from_adapter
+        # 启动所有已注册的适配器（由 _init_instances 注册到池）
+        try:
+            adapter_pool.start_all(lambda e: asyncio.create_task(event_bus.publish(e)))
+            logger.info("✅ 实例池已启动")
+        except Exception as e:
+            logger.warning(f"⚠️ 实例池启动异常: {e}")
 
-        ws_mode = "forward" if conn_mode == "ws_forward" else "reverse"
-        ws_host = config_manager.get("ws_host", "127.0.0.1")
-        ws_port = config_manager.get("ws_port", 3001)
-        token = config_manager.get("access_token", "")
+        # 触发 on_ready 钩子
+        try:
+            plugin_manager.trigger_on_ready()
+        except Exception as e:
+            logger.warning(f"⚠️ on_ready 钩子触发失败: {e}")
 
-        ws_adapter = GracyOneBotWS(
-            mode=ws_mode,
-            host=ws_host,
-            port=ws_port,
-            access_token=token,
-            robot_id=ROBOT_ID,
-        )
-        # 注入到 send.py，使 gracy_send_msg() 走 WS 通道
-        set_adapter(ws_adapter)
-
-        def on_ws_event(event):
-            with app.app_context():
-                try:
-                    start_time = time.time()
-                    monitor_manager.record_message_received()
-                    parsed = process_event_from_adapter(event)
-                    if parsed:
-                        ret = dispatch_plugin_cmd(parsed)
-                        processing_time = time.time() - start_time
-                        monitor_manager.record_message_processed(processing_time)
-                        if isinstance(ret, tuple) and len(ret) >= 2:
-                            if len(ret) == 3:
-                                _, _, handled = ret
-                            else:
-                                _, handled = ret
-                            if handled:
-                                logger.info('请求处理成功')
-                            else:
-                                raw_msg = parsed.get("raw_msg", "")
-                                if not is_cq_raw_message(raw_msg):
-                                    builtin_cmds = {"/关机", "/重启", "/开机", "/关于"}
-                                    all_cmds = set(builtin_cmds)
-                                    for p in PLUGIN_REGISTRY:
-                                        for cmd in p.get("commands", []):
-                                            if cmd != "//":
-                                                all_cmds.add(cmd)
-                                    if any(raw_msg.startswith(cmd) for cmd in all_cmds):
-                                        logger.info(f'指令未匹配任何插件: {raw_msg[:30]}')
-                except Exception as e:
-                    logger.error(f"[WS 事件处理] 异常: {e}", exc_info=True)
-
-        ws_adapter.start(on_ws_event)
-        logger.info(f"✅ WebSocket {'正向连接' if ws_mode == 'forward' else '反向监听'}已启动")
+        logger.info("✅ 适配器池运行中，等待消息...")
 
         try:
             while True:
-                time.sleep(1)
+                await asyncio.sleep(1)
         except KeyboardInterrupt:
-            ws_adapter.stop()
-            logger.info("🛑 WebSocket 已断开")
+            adapter_pool.stop_all()
+            logger.info("🛑 适配器池已停止")
 
     sys.exit(0)

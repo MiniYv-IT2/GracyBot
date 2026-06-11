@@ -3,7 +3,7 @@ import os
 import re
 import time as _time_module
 from datetime import datetime
-from flask import Blueprint, request
+from quart import Blueprint, request
 
 logs_bp = Blueprint("logs", __name__, url_prefix="/api")
 
@@ -83,7 +83,7 @@ def _find_latest_log() -> str | None:
 
 
 @logs_bp.route("/logs")
-def api_logs():
+async def api_logs():
     """获取日志列表（仅显示本次启动后的，支持翻页）"""
     page = request.args.get("page", 1, type=int)
     page_size = request.args.get("page_size", 100, type=int)

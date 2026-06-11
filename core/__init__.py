@@ -78,13 +78,24 @@ def get_logger_manager():
     """获取日志管理器实例"""
     return core.logger_manager
 
-# 导出主要工具函数和常量
-from core.handler import callback_base, dispatch_plugin_cmd, register_plugin
-from core.utils import logger, sanitize_log
+# 导出主要工具函数和常量（容错导入，避免缺依赖时崩整个包）
+try:
+    from core.handler import callback_base
+except ImportError:
+    callback_base = None
 
-# 版本信息
-from core.config import BOT_VERSION
-__version__ = BOT_VERSION.removeprefix('v')
+try:
+    from core.utils import logger, sanitize_log
+except ImportError:
+    logger = None
+    sanitize_log = None
+
+# 版本信息（懒加载，避免导入时触发配置系统）
+def _get_version():
+    from core.config import BOT_VERSION
+    return BOT_VERSION.removeprefix('v')
+
+__version__ = _get_version()
 __all__ = [
     # 核心管理器访问函数
     "get_plugin_manager",
@@ -96,8 +107,6 @@ __all__ = [
     "core",
     # 主要函数
     "callback_base",
-    "dispatch_plugin_cmd",
-    "register_plugin",
     "sanitize_log",
     # 日志对象
     "logger",

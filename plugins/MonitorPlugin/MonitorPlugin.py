@@ -8,7 +8,7 @@ from core.plugin_manager import plugin_manager
 from core.gracy_adapter.send import gracy_send_msg
 from core.gracy_adapter.message import GracyText
 
-def handle_monitor(*args, **kwargs):
+async def handle_monitor(*args, **kwargs):
     """监控面板处理函数"""
     try:
         logger.info(f"[MonitorPlugin] handle_monitor函数被调用，args数量: {len(args)}, kwargs: {list(kwargs.keys())}")
@@ -81,9 +81,9 @@ def handle_monitor(*args, **kwargs):
             try:
                 # 根据chat_type确定正确的发送参数
                 if chat_type == 'group':
-                    send_result = gracy_send_msg(target_id, GracyText(text=content), chat_type=chat_type)
+                    await gracy_send_msg(target_id, GracyText(text=content), chat_type=chat_type)
                 else:
-                    send_result = gracy_send_msg(sender_id, GracyText(text=content), chat_type=chat_type)
+                    await gracy_send_msg(sender_id, GracyText(text=content), chat_type=chat_type)
                 logger.info(f"[MonitorPlugin] 消息发送成功到 {target_id}，类型: {chat_type}")
             except Exception as send_err:
                 logger.error(f"[MonitorPlugin] 发送消息失败: {str(send_err)}")
@@ -102,9 +102,9 @@ def handle_monitor(*args, **kwargs):
         # 尝试发送错误消息
         try:
             if chat_type == 'group':
-                gracy_send_msg(target_id, GracyText(text=error_msg), chat_type=chat_type)
+                await gracy_send_msg(target_id, GracyText(text=error_msg), chat_type=chat_type)
             else:
-                gracy_send_msg(sender_id, GracyText(text=error_msg), chat_type=chat_type)
+                await gracy_send_msg(sender_id, GracyText(text=error_msg), chat_type=chat_type)
             logger.info(f"[MonitorPlugin] 已发送错误消息")
         except Exception as send_err:
             logger.error(f"[MonitorPlugin] 发送错误消息失败: {str(send_err)}")

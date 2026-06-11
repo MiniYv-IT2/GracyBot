@@ -7,11 +7,19 @@ import traceback
 from datetime import datetime
 from typing import Dict, Any, Optional
 
-from core.config import LOG_ENCODING, LOG_LEVEL, ROBOT_ID
+from core.config import LOG_ENCODING, LOG_LEVEL
 
-# 设置导入路径
-project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-sys.path.append(project_root)
+# 设置导入路径：优先 GRACYBOT_HOME，然后 CWD（有 logs 或 bot.py），最后默认 CWD
+_cwd = os.getcwd()
+_gh = os.environ.get("GRACYBOT_HOME", "")
+if _gh and os.path.isdir(os.path.join(_gh, 'logs')):
+    project_root = _gh
+elif os.path.isdir(os.path.join(_cwd, 'logs')) or os.path.isfile(os.path.join(_cwd, 'bot.py')):
+    project_root = _cwd
+else:
+    # pip 安装后无 GRACYBOT_HOME 时，默认用当前工作目录
+    project_root = _cwd
+sys.path.insert(0, project_root)
 sys.path.append(os.path.join(project_root, 'style'))
 
 try:
@@ -79,10 +87,20 @@ class StructuredLogFormatter(logging.Formatter):
                 'level': record.levelname,
                 'logger': record.name,
                 'message': record.getMessage(),
-                'robot_id': ROBOT_ID,
                 'process': record.process,
                 'thread': record.threadName
             }
+
+            # robot_id 从 AdapterPool 获取（多实例时取第一个有值的）
+            try:
+                from core.gracy_adapter.pool import adapter_pool
+                default = adapter_pool.get_default()
+                if default and hasattr(default, '_instance_robot_id'):
+                    log_data['robot_id'] = default._instance_robot_id
+                else:
+                    log_data['robot_id'] = ''
+            except Exception:
+                log_data['robot_id'] = ''
             
             # 添加额外的上下文信息
             if hasattr(record, 'context'):
@@ -127,7 +145,7 @@ class StructuredLogFormatter(logging.Formatter):
                     final_message = f"{chinese_message} | {chinese_context}" if chinese_context else chinese_message
                 except Exception:
                     # 如果中文格式化失败，使用原始消息
-                    final_message = f"{original_message} | {record.context}"
+                    final_message = f"{original_message} | {str(record.context)}"
             else:
                 try:
                     final_message = self._format_message_to_chinese(original_message)
@@ -155,6 +173,16 @@ class StructuredLogFormatter(logging.Formatter):
             
             return formatted
 
+class _SafeRotatingFileHandler(logging.handlers.TimedRotatingFileHandler):
+    """Windows 安全的轮转 handler——轮转失败时静默继续写，不崩溃"""
+    def doRollover(self):
+        try:
+            super().doRollover()
+        except PermissionError:
+            # Windows 上文件被占用时跳过轮转，继续写入当前文件
+            pass
+
+
 class LoggerManager:
     """企业级日志管理器"""
     _instance = None
@@ -175,7 +203,7 @@ class LoggerManager:
     def _create_rotating_file_handler(self, filename, level, structured=True, backup_count=7, include_stack_info=False):
         """创建轮转文件处理器"""
         log_file = os.path.join(LOG_DIR, filename)
-        handler = logging.handlers.TimedRotatingFileHandler(
+        handler = _SafeRotatingFileHandler(
             log_file,
             when='midnight',
             interval=1,
@@ -189,13 +217,12 @@ class LoggerManager:
     
     def _create_console_handler(self, level, structured=False):
         """创建控制台处理器"""
-        import io
-        safe_stream = io.TextIOWrapper(sys.stdout.buffer, encoding=sys.stdout.encoding or 'utf-8', errors='ignore')
-        handler = logging.StreamHandler(safe_stream)
+        # 直接绑定 sys.stdout（单缓冲），避免 TextIOWrapper 双缓冲导致日志丢失
+        handler = logging.StreamHandler(sys.stdout)
         handler.setLevel(level)
         formatter = StructuredLogFormatter(structured=structured, include_stack_info=False)
         handler.setFormatter(formatter)
-        
+
         # 添加颜色支持过滤器
         def add_color_support(record):
             record.color_enabled = supports_color()
@@ -225,6 +252,12 @@ class LoggerManager:
             # 添加控制台处理器
             console_handler = self._create_console_handler(getattr(logging, log_level), structured=False)
             root_logger.addHandler(console_handler)
+            
+            # 设置 stdout 行缓冲，确保每条日志换行后立即输出
+            try:
+                sys.stdout.reconfigure(line_buffering=True)
+            except Exception:
+                pass
             
             # 添加文件处理器
             file_handler = self._create_rotating_file_handler('gracybot.log', logging.DEBUG, structured, 7, True)

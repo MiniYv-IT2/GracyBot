@@ -152,22 +152,44 @@ def sanitize_log(content: str) -> str:
     :param content: 原始日志内容
     :return: 脱敏后的日志内容
     """
-    # 1. 裸QQ/ID脱敏（无任何前缀，纯数字，如192004908 → 用户****4908）
-    content = re.sub(r'(?<!\w)(\d{5,15})(?!\w)', lambda m: f"用户****{m.group(1)[-4:]}", content)
-    # 2. 带前缀用户ID脱敏（格式1：用户123456 → 用户****456）
+    def _mask_bare_number(m):
+        """脱敏裸数字，但排除 IP:port 和 WS address 格式中的端口号"""
+        num = m.group(0)
+        start = m.start()
+        prefix = content[max(0, start-40):start]
+        if re.search(r'\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}[\',\s\)]*$', prefix):
+            return num
+        if re.search(r"'\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}[\',\s]*$", prefix):
+            return num
+        return f"用户****{num[-4:]}"
+
+    # 【优先匹配】带标签的ID格式（必须在裸数字之前，避免被裸数字规则先匹配）
+    # 0. @QQ号脱敏（格式：[@123456] → [@用户****456]）
+    content = re.sub(r'\[@(\d{1,})\]', lambda m: f'[@用户****{m.group(1)[-4:]}]', content)
+    content = re.sub(r'@(\d{5,15})(?!\w)', lambda m: f'@用户****{m.group(1)[-4:]}', content)
+    # 1. 群组ID/群ID/群号脱敏
+    content = re.sub(r'群(?:组)?ID[：:]\s*(\d{1,})', lambda m: f"群ID：****{m.group(1)[-4:]}", content)
+    content = re.sub(r'群号[：:\s]+(\d{1,})', lambda m: f"群号：****{m.group(1)[-4:]}", content)
+    # 2. 群名称/群聊名称
+    content = re.sub(r'(?:群名|群聊名称)[：:]\s*([^\s|]{1,30})', lambda m: f"群名：{m.group(1)}", content)
+    # 3. 带前缀用户ID脱敏
     content = re.sub(r'用户(\d{1,})', lambda m: f"用户****{m.group(1)[-4:]}", content)
-    # 3. 括号包裹ID脱敏（格式2：【123456】→ 【用户****456】）
+    # 4. 括号包裹ID脱敏
     content = re.sub(r'【(\d{1,})】', lambda m: f"【用户****{m.group(1)[-4:]}】", content)
-    # 4. 群ID脱敏（格式：群ID：123456 → 群ID：****456）
-    content = re.sub(r'群ID：(\d{1,})', lambda m: f"群ID：****{m.group(1)[-4:]}", content)
-    # 5. 目标ID脱敏（格式：目标ID：123456 → 目标ID：用户****456）
-    content = re.sub(r'目标ID：(\d{1,})', lambda m: f"目标ID：用户****{m.group(1)[-4:]}", content)
-    # 6. 消息发送目标脱敏（格式：发送private消息到123456 → 发送private消息到【用户****456】）
+    # 5. 目标ID脱敏
+    content = re.sub(r'目标ID[：:]\s*(\d{1,})', lambda m: f"目标ID：用户****{m.group(1)[-4:]}", content)
+    # 5.1 消息发送日志脱敏
+    content = re.sub(r'目标:\s*(\d{5,15})', lambda m: f"目标: 用户****{m.group(1)[-4:]}", content)
+    # 6. 消息发送目标脱敏
     content = re.sub(r'发送(private|group)消息到(\d{1,})', lambda m: f"发送{m.group(1)}消息到【用户****{m.group(2)[-4:]}】", content)
-    # 7. 密码脱敏（完全隐藏，适配密码:xxx/密码=xxx格式）
+    # 7. 密码脱敏
     content = re.sub(r'密码[:=]\s*[^\s]+', '密码: ******', content)
-    # 8. API密钥脱敏（保留前6位，适配sk-/API_KEY等格式）
+    # 8. API密钥脱敏
     content = re.sub(r'(API_KEY|api_key|sk-|SK-)[\s:]*([a-zA-Z0-9]{6})[a-zA-Z0-9]*', r'\1\2****', content)
+    # 9. 内置命令日志脱敏
+    content = re.sub(r'主人(\d{1,})', lambda m: f"主人用户****{m.group(1)[-4:]}", content)
+    # 10. 裸QQ/ID脱敏（放最后，只匹配没有被标签覆盖的纯数字）
+    content = re.sub(r'(?<!\w)(\d{5,15})(?!\w)', _mask_bare_number, content)
     return content
 
 # ========== 日志自动脱敏过滤器（全局生效，无需手动调用） ==========

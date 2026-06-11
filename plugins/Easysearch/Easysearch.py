@@ -37,37 +37,37 @@ def _extract_browse(raw_msg: str):
     return None
 
 
-def handle_easysearch(self_bot, bot, message, user_id, chat_type, permission, log_func):
+async def handle_easysearch(self_bot, bot, message, user_id, chat_type, permission, log_func):
     raw_msg = message.get("text", "").strip()
     target_id = str(message.get("raw_data", {}).get("group_id") if chat_type == "group" else user_id)
 
     engine, query = _extract_search(raw_msg)
     if query is not None:
         if not query:
-            bot(target_id, GracyText(text="❌ 用法：/搜索 关键词\n或：/百度搜索 关键词 /必应搜索 关键词 /谷歌搜索 关键词 /搜狗搜索 关键词 /Yandex搜索 关键词"), chat_type=chat_type)
+            await bot(target_id, GracyText(text="❌ 用法：/搜索 关键词\n或：/百度搜索 关键词 /必应搜索 关键词 /谷歌搜索 关键词 /搜狗搜索 关键词 /Yandex搜索 关键词"), chat_type=chat_type)
             return True
-        bot(target_id, GracyText(text=f"🔍 正在搜索: {query}"), chat_type=chat_type)
+        await bot(target_id, GracyText(text=f"🔍 正在搜索: {query}"), chat_type=chat_type)
         result = do_search(query, engine)
         if result["ok"]:
-            bot(target_id, GracyImage(file_path=result["image_path"]), chat_type=chat_type)
+            await bot(target_id, GracyImage(file_path=result["image_path"]), chat_type=chat_type)
         else:
             img_path = draw_error(result["error"])
-            bot(target_id, GracyImage(file_path=img_path), chat_type=chat_type)
+            await bot(target_id, GracyImage(file_path=img_path), chat_type=chat_type)
         log_func.info(f"用户{user_id} 搜索: {query} (引擎:{engine or '默认'})")
         return True
 
     browse_url = _extract_browse(raw_msg)
     if browse_url is not None:
         if not browse_url:
-            bot(target_id, GracyText(text="❌ 用法：/浏览 https://example.com"), chat_type=chat_type)
+            await bot(target_id, GracyText(text="❌ 用法：/浏览 https://example.com"), chat_type=chat_type)
             return True
-        bot(target_id, GracyText(text=f"🌐 正在浏览..."), chat_type=chat_type)
+        await bot(target_id, GracyText(text=f"🌐 正在浏览..."), chat_type=chat_type)
         result = do_browse(browse_url)
         if result["ok"]:
-            bot(target_id, GracyImage(file_path=result["image_path"]), chat_type=chat_type)
+            await bot(target_id, GracyImage(file_path=result["image_path"]), chat_type=chat_type)
         else:
             img_path = draw_error(result["error"])
-            bot(target_id, GracyImage(file_path=img_path), chat_type=chat_type)
+            await bot(target_id, GracyImage(file_path=img_path), chat_type=chat_type)
         log_func.info(f"用户{user_id} 浏览: {browse_url}")
         return True
 

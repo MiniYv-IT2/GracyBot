@@ -1,41 +1,33 @@
 import json
 import os
 import logging
-from openai import OpenAI
+from openai import AsyncOpenAI
+from core.plugin_manager import plugin_manager
 
-CONFIG_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), "config.json")
 logger = logging.getLogger("LLM_Chat")
 
 
 def load_config():
-    default_config = {
-        "api_key": "",
-        "model": "deepseek-chat",
-        "api_base": "https://api.deepseek.com/v1",
-        "vision_model": "deepseek-chat",
-        "vision_api_key": "",
-        "vision_api_base": "https://api.deepseek.com/v1",
-        "vision_enabled": True,
-        "max_context": 50,
-        "default_persona": "你是由GracyBot开发团队开发的AI助手，名为GracyBot AI。",
-        "poke_enabled": True,
-        "poke_ai_reply": True,
-        "poke_back": True
-    }
-    if os.path.exists(CONFIG_PATH):
-        with open(CONFIG_PATH, "r", encoding="utf-8") as f:
-            config = json.load(f)
-            # 合并默认配置，确保所有字段存在
-            for key, value in default_config.items():
-                if key not in config:
-                    config[key] = value
-            return config
-    return default_config
+    """从统一配置系统加载配置"""
+    return plugin_manager.get_plugin_config("LLM_Chat")
 
 
 def save_config(config):
-    with open(CONFIG_PATH, "w", encoding="utf-8") as f:
-        json.dump(config, f, ensure_ascii=False, indent=4)
+    """保存完整配置到 style/config/ 文件"""
+    # 直接写入 style/config/llm_chat_config.json
+    style_path = os.path.join(
+        os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
+        "style", "config", "llm_chat_config.json"
+    )
+    os.makedirs(os.path.dirname(style_path), exist_ok=True)
+    try:
+        with open(style_path, "w", encoding="utf-8") as f:
+            json.dump(config, f, ensure_ascii=False, indent=2)
+    except Exception as e:
+        logger.error(f"保存配置到 {style_path} 失败: {str(e)}")
+        return
+    # 同步更新内存缓存
+    plugin_manager._plugin_configs["LLM_Chat"] = dict(config)
 
 
 def _build_openai_messages(messages):
@@ -47,7 +39,7 @@ def _build_openai_messages(messages):
             seen_system_time = True
 
 
-def call_llm_api(messages, config=None):
+async def call_llm_api(messages, config=None):
     if config is None:
         config = load_config()
 
@@ -79,7 +71,7 @@ def call_llm_api(messages, config=None):
         api_base = config.get("api_base")
         api_key = config["api_key"]
 
-    client = OpenAI(
+    client = AsyncOpenAI(
         api_key=api_key,
         base_url=api_base
     )
@@ -87,7 +79,7 @@ def call_llm_api(messages, config=None):
     _build_openai_messages(messages)
 
     try:
-        response = client.chat.completions.create(
+        response = await client.chat.completions.create(
             model=model,
             messages=messages,
             temperature=0.7,

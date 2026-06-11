@@ -1,0 +1,16 @@
+{
+  "_说明": "多适配器配置，可配置多个OneBot实例或其他平台",
+  "_格式": {
+    "platform": "平台类型 onebot/telegram/discord",
+    "bot_name": "自定义名称，用于日志和事件溯源",
+    "enabled": "是否启用",
+    "type": "ws_forward / ws_reverse / http",
+    "host": "连接地址",
+    "port": "端口",
+    "access_token": "access_token（可选）",
+    "robot_id": "机器人QQ号（OneBot用）",
+    "http_url": "HTTP API 地址（WS模式也可填，作为备用通道）"
+  },
+  "adapters": [
+  ]
+}

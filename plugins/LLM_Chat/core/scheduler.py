@@ -1,5 +1,6 @@
 import threading
 import time
+import asyncio
 import re
 from datetime import datetime, timedelta
 from .database import add_scheduled_task, get_scheduled_tasks, disable_task, get_personas, get_current_persona
@@ -94,8 +95,8 @@ def extract_task_from_message(message, chat_id):
     
     return {"time": time_str, "content": task_content, "chat_id": chat_id}
 
-def schedule_task(chat_id, task_time, task_content, persona=None):
-    add_scheduled_task(chat_id, task_time, task_content, persona)
+async def schedule_task(chat_id, task_time, task_content, persona=None):
+    await add_scheduled_task(chat_id, task_time, task_content, persona)
 
 def check_and_execute_tasks():
     import logging
@@ -107,7 +108,7 @@ def check_and_execute_tasks():
     while True:
         try:
             current_time = datetime.now().strftime("%H:%M")
-            tasks = get_scheduled_tasks()
+            tasks = asyncio.run(get_scheduled_tasks())
             
             if tasks:
                 logger.debug(f"[定时检查] 当前时间: {current_time}, 待执行任务数: {len(tasks)}")
@@ -115,7 +116,7 @@ def check_and_execute_tasks():
             for task_id, chat_id, task_time, task_content, persona in tasks:
                 if task_time == current_time and task_id not in executed_tasks:
                     logger.info(f"[定时任务] 执行任务 #{task_id}: {task_time} - {task_content}")
-                    disable_task(task_id)
+                    asyncio.run(disable_task(task_id))
                     executed_tasks.add(task_id)
                     execute_task(chat_id, task_content, persona)
                     logger.info(f"[定时任务] 任务 #{task_id} 执行完成")
@@ -129,14 +130,14 @@ def check_and_execute_tasks():
 
 def execute_task(chat_id, task_content, persona):
     config = load_config()
-    personas = get_personas()
+    personas = asyncio.run(get_personas())
     if "默认人设" not in personas:
         personas["默认人设"] = config.get("default_persona", "")
     
     if persona and persona in personas:
         persona_content = personas[persona]
     else:
-        current_persona = get_current_persona(chat_id)
+        current_persona = asyncio.run(get_current_persona(chat_id))
         persona_content = personas.get(current_persona, personas["默认人设"])
     
     system_prompt = f"{persona_content}\n\n【定时提醒任务】\n任务内容：{task_content}\n\n要求：\n1. 发送一条简洁友好的提醒消息（不超过50字）\n2. 不要分段，不要发送多条消息\n3. 可以包含emoji和温馨提示"
@@ -148,14 +149,14 @@ def execute_task(chat_id, task_content, persona):
         {"role": "user", "content": f"现在到了提醒时间，请提醒我：{task_content}"}
     ]
     
-    reply = call_llm_api(messages, config)
+    reply = asyncio.run(call_llm_api(messages, config))
     
     chat_type, target_id = chat_id.split("_", 1)
     
     try:
         from core.gracy_adapter.send import gracy_send_msg
         from core.gracy_adapter.message import GracyText
-        gracy_send_msg(target_id, GracyText(text=reply), chat_type=chat_type)
+        asyncio.run(gracy_send_msg(target_id, GracyText(text=reply), chat_type=chat_type))
     except:
         pass
 

@@ -1,13 +1,12 @@
-import json
 import os
 import urllib.parse
 import sys
 from typing import Dict, Optional
 from playwright.sync_api import sync_playwright, TimeoutError as PwTimeout
+from core.plugin_manager import plugin_manager
 
 PLUGIN_DIR = os.path.dirname(os.path.abspath(__file__))
 CACHE_DIR = os.path.join(PLUGIN_DIR, "data")
-CONFIG_PATH = os.path.join(PLUGIN_DIR, "config.json")
 
 IPHONE_VIEWPORT = {"width": 390, "height": 844}
 IPHONE_UA = (
@@ -26,8 +25,8 @@ COMMON_PROXIES = [
 
 
 def _load_config() -> dict:
-    with open(CONFIG_PATH, "r", encoding="utf-8") as f:
-        return json.load(f)
+    """从统一配置系统加载配置"""
+    return plugin_manager.get_plugin_config("Easysearch")
 
 
 def _detect_proxy() -> Optional[Dict[str, str]]:
