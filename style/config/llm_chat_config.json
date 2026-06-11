@@ -1,5 +1,5 @@
 {
-  "api_key": "e1846e0d2a6146d0acf5175896609e9e.o5X7Sf1XeTZjShn3",
+  "api_key": "",
   "model": "glm-4.7-flash",
   "api_base": "https://open.bigmodel.cn/api/paas/v4/",
   "vision_model": "qwen-vl-plus",
