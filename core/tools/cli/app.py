@@ -10,6 +10,7 @@ if sys.platform == "win32" and hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8")
     except Exception:
         pass
+sys._called_from_cli = True  # 标记 CLI 入口，让 logger_manager 跳过 chcp 65001
 
 import typer
 

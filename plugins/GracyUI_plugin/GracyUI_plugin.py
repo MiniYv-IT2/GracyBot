@@ -81,11 +81,14 @@ def _boot_panel_and_notify():
     try:
         from core.gracy_adapter.send import gracy_send_msg
         from core.gracy_adapter.message import GracyText
-        from core.config import MASTER_ID
+        from core.config import get_current_master_id
         import asyncio
 
+        # 从 RuntimeContext 获取当前实例的主人 ID
+        _master_id = get_current_master_id()
+
         # 检查是否首次运行（占位符值）
-        _is_first_run = not str(MASTER_ID).isdigit()
+        _is_first_run = not str(_master_id).isdigit()
         if _is_first_run:
             _logger.info("[GracyUI] 首次运行，跳过发送面板地址（请先编辑 config.json 填写 master_id）")
             _logger.info(f"[GracyUI] Quart 正在监听 http://0.0.0.0:{_PANEL_PORT}")
@@ -106,13 +109,13 @@ def _boot_panel_and_notify():
             import asyncio as _asyncio
             if _main_event_loop:
                 future = _asyncio.run_coroutine_threadsafe(
-                    gracy_send_msg(MASTER_ID, GracyText(text=msg), chat_type="private"),
+                    gracy_send_msg(_master_id, GracyText(text=msg), chat_type="private"),
                     _main_event_loop
                 )
                 future.result(timeout=10)
             else:
                 # 退而求其次
-                _asyncio.run(gracy_send_msg(MASTER_ID, GracyText(text=msg), chat_type="private"))
+                _asyncio.run(gracy_send_msg(_master_id, GracyText(text=msg), chat_type="private"))
         except Exception as _e:
             _logger.warning(f"[GracyUI] 调度发送失败: {_e}")
         _logger.info(f"[GracyUI] ✔ 面板已自启，地址已发送给主人")

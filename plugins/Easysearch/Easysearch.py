@@ -47,7 +47,7 @@ async def handle_easysearch(self_bot, bot, message, user_id, chat_type, permissi
             await bot(target_id, GracyText(text="❌ 用法：/搜索 关键词\n或：/百度搜索 关键词 /必应搜索 关键词 /谷歌搜索 关键词 /搜狗搜索 关键词 /Yandex搜索 关键词"), chat_type=chat_type)
             return True
         await bot(target_id, GracyText(text=f"🔍 正在搜索: {query}"), chat_type=chat_type)
-        result = do_search(query, engine)
+        result = await do_search(query, engine)
         if result["ok"]:
             await bot(target_id, GracyImage(file_path=result["image_path"]), chat_type=chat_type)
         else:
@@ -62,7 +62,7 @@ async def handle_easysearch(self_bot, bot, message, user_id, chat_type, permissi
             await bot(target_id, GracyText(text="❌ 用法：/浏览 https://example.com"), chat_type=chat_type)
             return True
         await bot(target_id, GracyText(text=f"🌐 正在浏览..."), chat_type=chat_type)
-        result = do_browse(browse_url)
+        result = await do_browse(browse_url)
         if result["ok"]:
             await bot(target_id, GracyImage(file_path=result["image_path"]), chat_type=chat_type)
         else:

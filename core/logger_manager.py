@@ -4,6 +4,8 @@ import logging
 import logging.handlers
 import sys
 import traceback
+import threading
+import queue
 from datetime import datetime
 from typing import Dict, Any, Optional
 
@@ -51,6 +53,13 @@ except ImportError:
 
 # 日志目录
 LOG_DIR = os.path.join(project_root, 'logs')
+
+# Windows 终端编码修复（模块加载后立即生效，覆盖所有 print/logging 输出）
+if sys.platform == "win32" and hasattr(sys.stdout, "reconfigure"):
+    try:
+        sys.stdout.reconfigure(encoding="utf-8")
+    except Exception:
+        pass
 
 class StructuredLogFormatter(logging.Formatter):
     """结构化日志格式化器，支持JSON和人类可读格式"""
@@ -157,6 +166,13 @@ class StructuredLogFormatter(logging.Formatter):
             logger_name = record.name
             level_name = getattr(record, 'original_levelname', record.levelname)
             
+            # 从 Gracy.<bot_name> 格式提取实例名，替换 logger 名称显示为 [主号]
+            # 只对 setup_runtime_logger 注册的实例生效
+            if logger_name.startswith("Gracy.") and "." in logger_name:
+                inst = logger_name.split(".", 1)[1]
+                if inst and inst in _RUNTIME_LOGGER_NAMES:
+                    logger_name = f"[{inst}]"
+            
             # 使用颜色格式（仅控制台启用颜色时；文件日志 force_no_color 永远去色）
             try:
                 use_color = False if self.force_no_color else getattr(record, 'color_enabled', False)
@@ -179,8 +195,57 @@ class _SafeRotatingFileHandler(logging.handlers.TimedRotatingFileHandler):
         try:
             super().doRollover()
         except PermissionError:
-            # Windows 上文件被占用时跳过轮转，继续写入当前文件
             pass
+
+
+class _ConsoleHandler(logging.Handler):
+    """后台线程 + 队列驱动的控制台处理器
+
+    所有 log record 通过线程安全队列投递到后台消费线程，
+    后台线程独立于主线程和 hypercorn 事件循环，确保终端输出永不卡死。
+    """
+
+    _queue: queue.Queue = queue.Queue(maxsize=1000)
+    _thread: threading.Thread = None
+    _started: bool = False
+    _lock: threading.Lock = threading.Lock()
+
+    @classmethod
+    def _ensure_thread(cls):
+        if cls._started:
+            return
+        with cls._lock:
+            if cls._started:
+                return
+            cls._started = True
+            cls._thread = threading.Thread(target=cls._consumer, daemon=True, name="ConsoleWriter")
+            cls._thread.start()
+
+    @classmethod
+    def _consumer(cls):
+        """后台消费者线程 — 从队列取日志并 print 到控制台"""
+        while True:
+            try:
+                text = cls._queue.get(timeout=30)
+                while text is not None:
+                    print(text, flush=True)
+                    cls._queue.task_done()
+                    text = cls._queue.get(timeout=1)
+            except queue.Empty:
+                continue
+            except Exception:
+                pass
+
+    def __init__(self):
+        super().__init__()
+        self._ensure_thread()
+
+    def emit(self, record: logging.LogRecord) -> None:
+        try:
+            msg = self.format(record)
+            self._queue.put_nowait(msg)
+        except Exception:
+            self.handleError(record)
 
 
 class LoggerManager:
@@ -217,8 +282,9 @@ class LoggerManager:
     
     def _create_console_handler(self, level, structured=False):
         """创建控制台处理器"""
-        # 直接绑定 sys.stdout（单缓冲），避免 TextIOWrapper 双缓冲导致日志丢失
-        handler = logging.StreamHandler(sys.stdout)
+        # 用 _ConsoleHandler，直接 print(flush=True) 输出
+        # 不依赖 sys.stdout，避免 hypercorn 接管事件循环后 stdout 被劫持
+        handler = _ConsoleHandler()
         handler.setLevel(level)
         formatter = StructuredLogFormatter(structured=structured, include_stack_info=False)
         handler.setFormatter(formatter)
@@ -231,7 +297,7 @@ class LoggerManager:
         color_filter = logging.Filter()
         color_filter.filter = add_color_support
         handler.addFilter(color_filter)
-        
+
         return handler
     
     def setup(self, log_level: str = LOG_LEVEL, structured: bool = False) -> bool:
@@ -253,11 +319,7 @@ class LoggerManager:
             console_handler = self._create_console_handler(getattr(logging, log_level), structured=False)
             root_logger.addHandler(console_handler)
             
-            # 设置 stdout 行缓冲，确保每条日志换行后立即输出
-            try:
-                sys.stdout.reconfigure(line_buffering=True)
-            except Exception:
-                pass
+            # logging.StreamHandler.emit() 自带 flush，无需 reconfigure stdout
             
             # 添加文件处理器
             file_handler = self._create_rotating_file_handler('gracybot.log', logging.DEBUG, structured, 7, True)
@@ -378,6 +440,61 @@ class LoggerManager:
             extra_params['original_levelname'] = 'SUCCESS'
         
         logger.log(level, processed_message, extra=extra_params, exc_info=exc_info)
+
+# ══════════════════════════════════════════════════════════
+# Runtime 独立日志器设置
+# ══════════════════════════════════════════════════════════
+
+RUNTIME_LOG_DIR = os.path.join(LOG_DIR, 'instances')
+
+# 已注册的 Runtime 实例显示名称（供格式化器识别 [主号] 来自真实实例）
+_RUNTIME_LOGGER_NAMES: set = set()
+
+
+def setup_runtime_logger(instance_name: str, bot_name: str = None) -> logging.Logger:
+    """为 Runtime 创建独立的子日志器
+
+    日志器名称: "Gracy.<bot_name>"（终端显示为 [<bot_name>]）
+    传播策略: propagate=True，日志同步到 Root Logger → 终端
+    独立文件: logs/instances/<instance_name>/runtime.log
+
+    Args:
+        instance_name: 实例目录名（style/instances/<name>）
+        bot_name: 实例显示名称（如"主号"、"小号"），默认同 instance_name
+
+    Returns:
+        配置好的 Logger 实例
+    """
+    display_name = bot_name or instance_name
+    logger = logging.getLogger(f"Gracy.{display_name}")
+    _RUNTIME_LOGGER_NAMES.add(display_name)
+    logger.setLevel(logging.DEBUG)
+    logger.propagate = True  # ← 同步打印到终端（Root Logger 的 SanitizeLogFilter 自动脱敏）
+
+    # 清除已有 handler（避免热重载重复添加）
+    for handler in logger.handlers[:]:
+        logger.removeHandler(handler)
+
+    # 为该实例创建独立文件 handler
+    instance_log_dir = os.path.join(RUNTIME_LOG_DIR, instance_name)
+    os.makedirs(instance_log_dir, exist_ok=True)
+
+    log_path = os.path.join(instance_log_dir, "runtime.log")
+    handler = _SafeRotatingFileHandler(
+        log_path,
+        when='midnight',
+        interval=1,
+        backupCount=7,
+        encoding=LOG_ENCODING,
+    )
+    handler.setLevel(logging.DEBUG)
+    handler.setFormatter(StructuredLogFormatter(structured=False, include_stack_info=True, force_no_color=True))
+    logger.addHandler(handler)
+
+    logger.info(f"[Runtime:{instance_name}] 独立日志已初始化: {os.path.relpath(log_path)}")
+
+    return logger
+
 
 # 创建全局日志管理器实例
 logger_manager = LoggerManager()

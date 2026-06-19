@@ -11,10 +11,12 @@
 
     # 向指定适配器发送（需要获取 tag）
     await gracy_send_msg(target_id, GracyText("你好"), chat_type="group", tag=my_tag)
+
+消息链路:
+    Pipeline 设置 RuntimeContext → send() 通过 RuntimeContext.get().adapter_tag 自动适配
 """
 
 import asyncio
-import contextvars
 import logging
 import os
 from typing import List, Optional
@@ -25,10 +27,17 @@ from core.gracy_adapter.pool import adapter_pool
 
 _logger = logging.getLogger("Gracy.Send")
 
-# ── 当前消息处理上下文中的适配器信息（Pipeline 处理消息时自动设置） ──
-current_adapter_tag: contextvars.ContextVar[Optional[IdentityTag]] = contextvars.ContextVar('current_adapter_tag', default=None)
-current_robot_id: contextvars.ContextVar[str] = contextvars.ContextVar('current_robot_id', default="")
-current_master_id: contextvars.ContextVar[str] = contextvars.ContextVar('current_master_id', default="")
+
+def _get_runtime_tag() -> Optional[IdentityTag]:
+    """从当前消息上下文获取来源适配器标签"""
+    try:
+        from core.runtime import RuntimeContext
+        runtime = RuntimeContext.get()
+        if runtime:
+            return runtime.adapter_tag
+    except Exception:
+        pass
+    return None
 
 
 async def gracy_send_msg(target: str, *segments: GracyMsg,
@@ -40,14 +49,13 @@ async def gracy_send_msg(target: str, *segments: GracyMsg,
         target: 目标 ID
         segments: GracyText / GracyImage / GracyAt ... 任意数量
         chat_type: "private" | "group"
-        tag: 指定适配器标签，None=默认适配器（自动从当前消息上下文获取）
+        tag: 指定适配器标签，None=从消息上下文自动获取
 
     Returns:
         发送成功返回 True
     """
-    # 未指定 tag 时，尝试从当前消息处理上下文获取
     if tag is None:
-        tag = current_adapter_tag.get()
+        tag = _get_runtime_tag()
 
     seg_list: List[GracyMsg] = list(segments)
     send_result = adapter_pool.send(target, seg_list, chat_type, tag=tag)
@@ -90,13 +98,13 @@ async def gracy_call_api(action: str, params: dict = None,
     Args:
         action: 平台特定的 API 名称
         params: action 参数字典
-        tag: 指定适配器标签，None=默认适配器
+        tag: 指定适配器标签，None=从消息上下文自动获取
 
     Returns:
         成功返回 data 字段内容，失败返回 None
     """
     if tag is None:
-        tag = current_adapter_tag.get()
+        tag = _get_runtime_tag()
     adapter = adapter_pool.get(tag) if tag else adapter_pool.get_default()
     if adapter is None:
         _logger.error("[API] 无可用适配器")
@@ -113,10 +121,10 @@ async def gracy_get_platform_info(tag: Optional[IdentityTag] = None) -> dict:
     """获取平台统计信息
 
     Args:
-        tag: 指定适配器标签，None=当前消息上下文适配器或默认适配器
+        tag: 指定适配器标签，None=从消息上下文自动获取
     """
     if tag is None:
-        tag = current_adapter_tag.get()
+        tag = _get_runtime_tag()
     adapter = adapter_pool.get(tag) if tag else adapter_pool.get_default()
     if adapter is None:
         return {"friend_count": None, "group_count": None, "platform": "unknown", "protocol_version": None}

@@ -115,6 +115,9 @@ class GracyOneBot(GracyAdapter):
         # 过滤输入状态通知（对方正在输入...），避免产生空消息日志
         if data.get("notice_type") == "notify" and data.get("sub_type") == "input_status":
             return None
+        # 点赞通知不是消息，没有内容可处理
+        if data.get("notice_type") == "like":
+            return None
 
         # ── 过滤机器人自己的消息（自回显） ──
         if data.get("sub_type") == "self":
@@ -131,6 +134,9 @@ class GracyOneBot(GracyAdapter):
             data.get("user_id", "") if chat_type == "private" else data.get("group_id", "")
         )
         raw_message = data.get("raw_message", "")
+        # 没有消息内容（如纯通知事件），直接丢弃
+        if not raw_message.strip():
+            return None
         nickname = ""
         if isinstance(data.get("sender"), dict):
             nickname = data["sender"].get("nickname", "")

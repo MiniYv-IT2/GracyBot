@@ -8,6 +8,7 @@ Stage4 ResponseSender  → 消息发送
 
 import asyncio
 import inspect
+import platform
 import time
 import logging
 from typing import Optional, Dict, Any
@@ -24,17 +25,19 @@ _logger = logging.getLogger("GracyPipeline")
 def _is_master(ctx: PluginContext, plugin: dict = None) -> bool:
     """检查发送者是否为该实例的主人
 
-    优先级：实例的 master_id > 框架全局兜底 MASTER_ID
+    优先级：实例 master_id > Runtime master_id
     """
     sender_id = str(ctx.sender_id)
-    # 先从实例查
+    # 先从适配器实例查（旧路径，P3 后统一走 Runtime）
+    if ctx.runtime and str(ctx.runtime.master_id) == sender_id:
+        return True
     if ctx.pool and ctx.adapter_tag:
         adapter = ctx.pool.get(ctx.adapter_tag)
         if adapter:
             inst_master = getattr(adapter, '_instance_master_id', None)
             if inst_master and str(inst_master) == sender_id:
                 return True
-    # 兜底：框架级 MASTER_ID
+    # 兜底：框架级 MASTER_ID（P3 删除）
     try:
         from core.config import MASTER_ID
         if MASTER_ID and str(MASTER_ID) == sender_id:
@@ -248,26 +251,16 @@ class BuiltinCommands(Stage):
                 resource=None, success=True, event_type="command",
                 details={"command": raw_msg[:50]}
             )
-            about_content = f"""🏷️ 机器人基础信息
-• 机器人框架：GracyBot
-• 当前版本：{BOT_VERSION}
-• 核心定位：基于 Python 3.11+ 的安全 QQ 机器人框架，对接 NapCat，欢迎大佬来开发插件
-• 开发模式：插件即目录，一个插件一个文件夹，放入 plugins/ 自动注册，无需改框架代码
-🛠️ 框架产品特征
-• 核心开发语言：Python 3.11+ / TypeScript
-• 安全防护：全局日志脱敏、危险命令拦截、权限分级校验、频率限制
-• 插件管理：动态加载、指令自动分发、插件隔离运行、热重载
-• 基础工具：结构化日志、统一消息发送接口（GracyAdapter 多平台适配层）
-• 兼容环境：Linux（Debian 11+）、Windows 10+（UTF-8 编码适配）
-📋 核心特性
-1. 企业级安全：敏感信息自动脱敏、系统命令风险拦截、输入验证、审计日志
-2. 配置管理：集中化配置、环境变量支持、多级配置优先级
-3. 插件生态：独立目录管理，热加载/热卸载，无需修改核心即可扩展
-4. 多协议适配：HTTP 回调 + WebSocket 正/反向，统一 GracyAdapter 层
-5. 监控与可观测性：结构化日志、性能监控、健康检查、GracyUI 管理面板
-📞 维护信息
-• 开发作者：小禹
-• 反馈建议：欢迎到插件社区提交 Issue 或 PR"""
+            about_content = (
+                f"GracyBot v{BOT_VERSION[1:]}\n"
+                f"├ 作者: 小禹\n"
+                f"├ 定位: 跨平台 IM 轻量异步框架\n"
+                f"├ 协议: OneBot 11 (HTTP/WS)\n"
+                f"├ Python: {platform.python_version()}\n"
+                f"├ 插件: 10 个已注册\n"
+                f"└ 联系: QQ 192004908\n"
+                f"\n/帮助 查看所有命令"
+            )
             await gracy_send_msg(target_id, GracyText(text=about_content), chat_type=chat_type)
             _logger.info(f"[内置命令] 用户{sender_id}执行/关于命令")
             return None
@@ -326,40 +319,64 @@ class CommandMatcher(Stage):
             _logger.debug(f"[CommandMatcher] TOML 并行匹配: {plugin['name']} → {best['matched_cmd']} (priority={best['priority']})")
             return ctx  # 匹配成功，继续到 PluginHandler
 
-        # ── 路径 B: @on_command 装饰器匹配 ──
+        # ── 路径 B: @on_command / @on_regex 装饰器匹配 ──
         from core.decorators.registration import DECORATOR_COMMAND_REGISTRY
 
         for entry in DECORATOR_COMMAND_REGISTRY:
+            # B1: @on_command 精确匹配
             commands = entry.get("commands", [])
             matched_cmd = self._match_any(commands, raw_msg)
-            if not matched_cmd:
-                continue
+            if matched_cmd:
+                e_ct = entry.get("chat_type", ["private", "group"])
+                if ctx.chat_type not in e_ct:
+                    continue
+                ctx.command = matched_cmd
+                ctx.plugin_name = entry.get("plugin_name", "decorator")
+                ctx.extra["handler_func"] = entry["handler_func"]
+                ctx.extra["_match_source"] = "decorator"
+                _logger.debug(f"[CommandMatcher] 装饰器匹配: {ctx.plugin_name} → {matched_cmd}")
+                return ctx
 
-            e_ct = entry.get("chat_type", ["private", "group"])
-            if ctx.chat_type not in e_ct:
-                continue
-
-            ctx.command = matched_cmd
-            ctx.plugin_name = entry.get("plugin_name", "decorator")
-            ctx.extra["handler_func"] = entry["handler_func"]
-            ctx.extra["_match_source"] = "decorator"
-            _logger.debug(f"[CommandMatcher] 装饰器匹配: {ctx.plugin_name} → {matched_cmd}")
-            return ctx
+            # B2: @on_regex 正则匹配
+            patterns = entry.get("patterns", [])
+            for pattern_str, compiled in patterns:
+                m = compiled.search(raw_msg)
+                if m:
+                    e_ct = entry.get("chat_type", ["private", "group"])
+                    if ctx.chat_type not in e_ct:
+                        continue
+                    ctx.command = f"regex:{pattern_str}"
+                    ctx.plugin_name = entry.get("plugin_name", "decorator")
+                    ctx.extra["handler_func"] = entry["handler_func"]
+                    ctx.extra["_match_source"] = "decorator"
+                    ctx.extra["_regex_match"] = m
+                    _logger.debug(f"[CommandMatcher] 正则匹配: {ctx.plugin_name} → {pattern_str}")
+                    return ctx
 
         # 无匹配 → 继续到后续逻辑（可能走 AI 对话）
         ctx.extra["_match_source"] = "none"
         return ctx
 
     def _match_any(self, commands: list, raw_msg: str) -> Optional[str]:
-        """匹配命令列表，返回第一个匹配的命令"""
+        """匹配命令列表，返回最长匹配的命令
+
+        匹配规则:
+          - // 特殊处理（正则匹配消息开头或空格后的 //）
+          - 普通命令: 精确匹配或前缀 + 空格/结尾匹配
+          - 多个命令匹配时返回最长的（解决 /异环 vs /异环角色 冲突）
+        """
         import re
+        candidates = []
         for cmd in commands:
             if cmd == "//":
                 if re.search(r'(?:^|\s)//', raw_msg):
-                    return cmd
-            elif cmd in raw_msg:
-                return cmd
-        return None
+                    candidates.append(cmd)
+            elif raw_msg == cmd or raw_msg.startswith(cmd + " ") or raw_msg.startswith(cmd + "\n"):
+                candidates.append(cmd)
+        if not candidates:
+            return None
+        # 返回最长匹配（处理前缀冲突）
+        return max(candidates, key=len)
 
 
 # ══════════════════════════════════════════════════════════

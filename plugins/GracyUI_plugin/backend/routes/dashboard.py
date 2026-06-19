@@ -1,6 +1,7 @@
 """仪表盘 API — 系统状态 / 好友 / 群聊"""
 import time
 import platform
+import asyncio
 import psutil
 from quart import Blueprint
 
@@ -11,14 +12,26 @@ _BOOT_TIME = time.time()
 # CPU 名称缓存（60 秒）
 _cpu_name_cache: str = ""
 _cpu_name_cache_time: float = 0.0
+_cpu_name_lock = asyncio.Lock()
 
 
-def _get_cpu_name() -> str:
-    """获取 CPU 名称，60 秒缓存"""
+async def _async_get_cpu_name() -> str:
+    """异步获取 CPU 名称，60 秒缓存"""
     global _cpu_name_cache, _cpu_name_cache_time
     now = time.time()
     if _cpu_name_cache and (now - _cpu_name_cache_time) < 60:
         return _cpu_name_cache
+    async with _cpu_name_lock:
+        # double-check
+        if _cpu_name_cache and (now - _cpu_name_cache_time) < 60:
+            return _cpu_name_cache
+        name = await asyncio.to_thread(_sync_get_cpu_name, now)
+        return name
+
+
+def _sync_get_cpu_name(now: float) -> str:
+    """同步获取 CPU 名称（在后台线程执行）"""
+    global _cpu_name_cache, _cpu_name_cache_time
     name = ""
     try:
         if platform.system() == "Windows":
@@ -51,8 +64,13 @@ def _get_cpu_name() -> str:
     return name
 
 
-def _get_all_disks_usage():
-    """获取所有磁盘的合计用量，返回 (used_gb, total_gb)"""
+async def _async_get_all_disks_usage():
+    """异步获取所有磁盘的合计用量，返回 (used_gb, total_gb)"""
+    return await asyncio.to_thread(_sync_get_all_disks_usage)
+
+
+def _sync_get_all_disks_usage():
+    """同步获取磁盘用量（在后台线程执行）"""
     total_used = 0
     total_total = 0
     try:
@@ -94,11 +112,20 @@ def _get_uptime() -> str:
 async def api_system():
     """系统资源：CPU / 内存 / 磁盘 / 运行时间 / 操作系统"""
     mem = psutil.virtual_memory()
-    disk_used_gb, disk_total_gb = _get_all_disks_usage()
+
+    # 异步执行阻塞操作
+    cpu_percent_task = asyncio.to_thread(psutil.cpu_percent, interval=0.3)
+    cpu_name_task = _async_get_cpu_name()
+    disk_task = _async_get_all_disks_usage()
+
+    cpu_pct, cpu_name, (disk_used_gb, disk_total_gb) = await asyncio.gather(
+        cpu_percent_task, cpu_name_task, disk_task
+    )
+
     disk_pct = round((disk_used_gb / disk_total_gb * 100) if disk_total_gb > 0 else 0, 1)
     return {
-        "cpu_percent": round(psutil.cpu_percent(interval=0.3), 1),
-        "cpu_name": _get_cpu_name(),
+        "cpu_percent": round(cpu_pct, 1),
+        "cpu_name": cpu_name,
         "memory_percent": round(mem.percent, 1),
         "memory_used_gb": round(mem.used / (1024**3), 1),
         "memory_total_gb": round(mem.total / (1024**3), 1),

@@ -29,6 +29,11 @@ def _get_logger_manager():
     from .logger_manager import logger_manager
     return logger_manager
 
+def _get_runtime_registry():
+    """延迟导入 Runtime 注册表，避免循环依赖"""
+    from .runtime import RuntimeRegistry
+    return RuntimeRegistry
+
 # 使用属性描述器实现延迟加载
 class LazyLoader:
     """延迟加载属性描述器"""
@@ -53,6 +58,7 @@ class Core:
     config_manager = LazyLoader(_get_config_manager)
     monitor_manager = LazyLoader(_get_monitor_manager)
     logger_manager = LazyLoader(_get_logger_manager)
+    runtime_registry = LazyLoader(_get_runtime_registry)
 
 # 创建核心组件实例
 core = Core()
@@ -77,6 +83,10 @@ def get_monitor_manager():
 def get_logger_manager():
     """获取日志管理器实例"""
     return core.logger_manager
+
+def get_runtime_registry():
+    """获取 Runtime 注册表实例"""
+    return core.runtime_registry
 
 # 导出主要工具函数和常量（容错导入，避免缺依赖时崩整个包）
 try:
@@ -103,6 +113,7 @@ __all__ = [
     "get_config_manager",
     "get_monitor_manager",
     "get_logger_manager",
+    "get_runtime_registry",
     # 核心组件实例（延迟加载）
     "core",
     # 主要函数

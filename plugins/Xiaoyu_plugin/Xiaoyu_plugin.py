@@ -15,6 +15,7 @@ from typing import Tuple, List, Optional
 from core.config import get_current_master_id
 from core.utils import logger
 from core.gracy_adapter.send import gracy_send_msg
+from core.gracy_adapter.send import gracy_call_api
 from core.gracy_adapter.message import GracyImage, GracyText
 from .core.draw import XiaoyuHelpDrawer
 import asyncio
@@ -142,6 +143,11 @@ async def handle_xiaoyu(plugin_manager, gracy_send_msg, data, sender_id, chat_ty
             await _reply(content)
         return
 
+    # ── 赞我（所有人可用，自动给自己点10个赞）──
+    if raw_msg.strip() == "/赞我":
+        await _reply(await _cmd_like_me(sender_id))
+        return
+
     # ── 小禹帮助（所有人可用，无斜杠）──
     if raw_msg.strip() == "小禹帮助":
         await _cmd_xiaoyu_help(target_id, chat_type, sender_id)
@@ -180,6 +186,16 @@ async def handle_xiaoyu(plugin_manager, gracy_send_msg, data, sender_id, chat_ty
     # ── 安装插件依赖 ──
     if raw_msg.startswith("/安装依赖"):
         await _reply(await _cmd_install_deps(raw_msg, sender_id))
+        return
+
+    # ── 点赞（仅主人）──
+    if raw_msg.startswith("/点赞"):
+        await _reply(await _cmd_like(raw_msg, sender_id))
+        return
+
+    # ── 戳一戳（仅主人）──
+    if raw_msg.startswith("/戳一戳"):
+        await _reply(await _cmd_poke(raw_msg, sender_id))
         return
 
 
@@ -384,6 +400,79 @@ def _safe_id(user_id) -> str:
     """脱敏显示QQ号"""
     s = str(user_id)
     return f"{s[:3]}****{s[-3:]}" if len(s) >= 6 else "***"
+
+
+
+async def _cmd_like_me(sender_id: str) -> str:
+    """赞我：给自己点10个赞（所有人可用）"""
+    try:
+        await gracy_call_api("send_like", {"user_id": int(sender_id), "times": 10})
+        logger.info(f"[小禹插件] 用户 {_safe_id(sender_id)} 赞了自己 10 次")
+        return f"✅ 已给你点了 10 个赞！"
+    except Exception as e:
+        logger.error(f"[小禹插件] 赞我失败: {e}", exc_info=True)
+        return f"❌ 点赞失败：{e}"
+
+
+async def _cmd_like(raw_msg: str, sender_id: str) -> str:
+    """点赞：/点赞 <QQ号> [次数]（默认10次）
+    通过 NapCat 的 send_like API 实现
+    """
+    parts = raw_msg.split(maxsplit=2)
+    if len(parts) < 2:
+        return "⚠️ 用法：/点赞 <QQ号> [次数]\n示例：/点赞 123456789 10"
+
+    qq = parts[1].strip()
+    valid, err = _validate_qq(qq)
+    if not valid:
+        return f"⚠️ {err}"
+
+    times = 10
+    if len(parts) >= 3:
+        try:
+            times = int(parts[2].strip())
+            if times < 1:
+                return "⚠️ 点赞次数不能小于1"
+            if times > 20:
+                return "⚠️ 单次点赞次数不能超过20，请注意频率限制"
+        except ValueError:
+            return "⚠️ 次数必须为数字"
+
+    try:
+        result = await gracy_call_api("send_like", {"user_id": int(qq), "times": times})
+        # send_like 是空返回 API（retcode=0 但无 data 字段），返回 None 也是成功
+        logger.info(f"[小禹插件] 主人 {_safe_id(sender_id)} 给 {qq} 点了 {times} 个赞")
+        return f"✅ 已给 {qq} 发送 {times} 个赞！"
+    except Exception as e:
+        logger.error(f"[小禹插件] 点赞失败: {e}", exc_info=True)
+        return f"❌ 点赞失败：{e}"
+
+
+async def _cmd_poke(raw_msg: str, sender_id: str) -> str:
+    """戳一戳：/戳一戳 <QQ号>
+    通过 NapCat 的 friend_poke API 实现
+    """
+    parts = raw_msg.split(maxsplit=1)
+    if len(parts) < 2:
+        return "⚠️ 用法：/戳一戳 <QQ号>\n示例：/戳一戳 123456789"
+
+    qq = parts[1].strip()
+    valid, err = _validate_qq(qq)
+    if not valid:
+        return f"⚠️ {err}"
+
+    try:
+        result = await gracy_call_api("friend_poke", {"user_id": int(qq)})
+        if result is not None and result.get("status") == "ok":
+            logger.info(f"[小禹插件] 主人 {_safe_id(sender_id)} 戳了戳 {qq}")
+            return f"✅ 已戳了戳 {qq}！"
+        else:
+            # friend_poke 可能在某些版本返回不同，忽略具体响应
+            logger.info(f"[小禹插件] 主人 {_safe_id(sender_id)} 戳了戳 {qq}，响应: {result}")
+            return f"✅ 已尝试戳一戳 {qq}"
+    except Exception as e:
+        logger.error(f"[小禹插件] 戳一戳失败: {e}", exc_info=True)
+        return f"❌ 戳一戳失败：{e}"
 
 
 def _cmd_hotreload(raw_msg: str, sender_id: str) -> str:

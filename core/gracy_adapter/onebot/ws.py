@@ -225,6 +225,9 @@ class GracyOneBotWS(GracyAdapter):
         # 过滤输入状态通知（对方正在输入...），避免产生空消息日志
         if data.get("notice_type") == "notify" and data.get("sub_type") == "input_status":
             return None
+        # 点赞通知不是消息，没有内容可处理
+        if data.get("notice_type") == "like":
+            return None
 
         chat_type = data.get("message_type", "private")
         sender_id = str(data.get("user_id", ""))
@@ -293,7 +296,13 @@ class GracyOneBotWS(GracyAdapter):
         self._pending_messages.clear()
         if self._loop and self._loop.is_running():
             # 调度关闭 WS 连接，让事件循环自然退出
-            asyncio.run_coroutine_threadsafe(self._close_ws(), self._loop)
+            fut = asyncio.run_coroutine_threadsafe(self._close_ws(), self._loop)
+            def _consume_close(f):
+                try:
+                    f.result()
+                except Exception:
+                    pass
+            fut.add_done_callback(_consume_close)
         if self._loop_thread and self._loop_thread.is_alive():
             self._loop_thread.join(timeout=5)
         self._logger.info("[OneBotWS] 已停止")
@@ -497,9 +506,17 @@ class GracyOneBotWS(GracyAdapter):
             return False
         try:
             payload = json.dumps(data, ensure_ascii=False)
-            asyncio.run_coroutine_threadsafe(
+            fut = asyncio.run_coroutine_threadsafe(
                 self._ws.send(payload), self._loop
             )
+            # 消费 Future 异常，避免 Windows ProactorEventLoop 下
+            # "_OverlappedFuture exception was never retrieved" 警告刷屏
+            def _consume(f):
+                try:
+                    f.result()
+                except Exception as e:
+                    self._logger.debug(f"[OneBotWS] 发送异常（已消费）: {e}")
+            fut.add_done_callback(_consume)
             return True
         except Exception as e:
             self._logger.error(f"[OneBotWS] 发送失败: {e}")

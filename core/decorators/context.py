@@ -38,10 +38,25 @@ class PluginContext:
     send: Optional[Callable] = None        # 发送消息函数
     reply: Optional[Callable] = None       # 快捷回复
     logger: Optional[Callable] = None      # 当前插件日志器
-    plugin_manager: Any = None             # 插件管理器（供高级用法）
     session: Any = None                    # 会话对象（@with_session 时注入）
-    adapter_tag: Any = None                # 消息来源适配器标签（IdentityTag，多适配器时使用）
-    pool: Any = None                       # AdapterPool 实例（多适配器时使用）
+
+    # ── 运行时（由框架注入，替代 adapter_tag/pool/plugin_manager） ──
+    runtime: Any = None                    # 当前消息所属 Runtime 实例
+
+    @property
+    def adapter_tag(self) -> Any:
+        """消息来源适配器标签（从 Runtime 获取）"""
+        return self.runtime.adapter_tag if self.runtime else None
+
+    @property
+    def pool(self) -> Any:
+        """AdapterPool 实例（从 Runtime 获取）"""
+        return self.runtime.adapter_pool if self.runtime else None
+
+    @property
+    def plugin_manager(self) -> Any:
+        """插件管理器（从 Runtime 获取）"""
+        return self.runtime.plugin_manager if self.runtime else None
 
     # ── 运行时元信息 ──
     start_time: float = 0.0                # handler 开始时间

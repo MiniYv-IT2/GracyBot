@@ -109,45 +109,33 @@ DEBUG_MODE = config_manager.get("debug_mode")
 LOG_LEVEL = config_manager.get("log_level")
 CONNECTION_MODE = config_manager.get("connection_mode")
 
-# 全局兜底管理员 ID（各实例的 master_id 优先于它）
-# 现在 master_id 只在 style/instances/<name>/config.json 中配置，
-# 启动时从 AdapterPool 默认实例同步到此变量
-MASTER_ID = ""
-
-
-def _update_master_id(mid: str) -> None:
-    """供 AdapterPool 初始化后设置 MASTER_ID（向后兼容全局 import）"""
-    global MASTER_ID
-    if mid:
-        MASTER_ID = mid
-
-# 向后兼容导出：插件仍 from core.config import ROBOT_ID
-# 实际值从 AdapterPool 默认实例获取，在 run_bot() 初始化后更新
+# robot_id / master_id 已迁移到各实例配置文件 + RuntimeRegistry
+# 旧代码通过 get_current_robot_id() / get_current_master_id() 从 RuntimeContext 获取
 ROBOT_ID = ""
-
-
-def _update_robot_id(rid: str) -> None:
-    """供 AdapterPool 初始化后设置 ROBOT_ID（向后兼容插件导入）"""
-    global ROBOT_ID
-    if rid:
-        ROBOT_ID = rid
-
-
+MASTER_ID = ""
 ROBOT_START_TIME = time.time()
 
 
 def get_current_robot_id() -> str:
     """获取当前消息上下文中的机器人 ID（多实例时自动适配当前账号）
-    
+
     插件在消息处理中调用此函数代替直接使用 ROBOT_ID，
     多账号场景下会自动返回正确的机器人 QQ 号。
-    无上下文时回退到全局 ROBOT_ID。
+    无上下文时回退到第一个 Runtime 的 robot_id。
     """
     try:
-        from core.gracy_adapter.send import current_robot_id
-        ctx_id = current_robot_id.get()
-        if ctx_id:
-            return ctx_id
+        from core.runtime import RuntimeContext
+        runtime = RuntimeContext.get()
+        if runtime and runtime.robot_id:
+            return runtime.robot_id
+    except Exception:
+        pass
+    # 无上下文时尝试第一个 Runtime（如插件 on_ready 线程）
+    try:
+        from core.runtime import RuntimeRegistry
+        runtimes = RuntimeRegistry.get_all()
+        if runtimes and runtimes[0].robot_id:
+            return runtimes[0].robot_id
     except Exception:
         pass
     return ROBOT_ID
@@ -158,17 +146,21 @@ def get_current_master_id() -> str:
 
     插件在消息处理中调用此函数代替直接使用 MASTER_ID，
     多账号场景下会自动返回当前消息来源实例配置的主人 QQ 号。
-    无上下文时回退到全局 MASTER_ID。
+    无上下文时回退到第一个 Runtime 的 master_id。
     """
     try:
-        from core.gracy_adapter.send import current_master_id
-        ctx_id = current_master_id.get()
-        if ctx_id:
-            return ctx_id
+        from core.runtime import RuntimeContext
+        runtime = RuntimeContext.get()
+        if runtime and runtime.master_id:
+            return runtime.master_id
+    except Exception:
+        pass
+    # 无上下文时尝试第一个 Runtime（如插件 on_ready 线程）
+    try:
+        from core.runtime import RuntimeRegistry
+        runtimes = RuntimeRegistry.get_all()
+        if runtimes and runtimes[0].master_id:
+            return runtimes[0].master_id
     except Exception:
         pass
     return MASTER_ID
-
-
-# robot_id / master_id 已迁移到各实例配置文件（style/instances/<name>/config.json）
-# 不再作为框架级常量导出。框架代码通过 adapter_pool 获取当前适配器实例的信息。

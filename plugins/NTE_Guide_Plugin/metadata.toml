@@ -1,0 +1,23 @@
+[plugin]
+name        = "异环攻略插件"
+version     = "1.0.0"
+author      = "小禹"
+description = "异环(NTE)攻略查询插件 — 角色图鉴/弧盘大全/升级计算器/材料查询"
+
+[handler]
+entry       = "handle_nte"
+
+[trigger]
+commands       = ["/异环", "/异环角色", "/异环武器", "/异环材料", "/异环兑换码", "/异环搜索", "/异环清理缓存"]
+chat_type      = ["private", "group"]
+permission     = "all"
+is_at_required = false
+
+[trigger.command_descriptions]
+"/异环"         = "异环攻略导航"
+"/异环角色"     = "查询角色详情（例：/异环角色 薄荷）"
+"/异环武器"     = "查询弧盘详情（例：/异环武器 晴空）"
+"/异环材料"     = "查看升级所需材料（例：/异环材料 薄荷 1 60）"
+"/异环兑换码"   = "查看最新兑换码"
+"/异环搜索"     = "跨分类搜索（例：/异环搜索 薄荷）"
+"/异环清理缓存" = "清理缓存文件"

@@ -447,7 +447,13 @@ class PluginManager:
     # ── 配置初始化 ──
 
     def _init_plugin_config(self, plugin_name: str, plugin_path: str) -> dict:
-        """初始化插件配置（config.py + config.json）"""
+        """初始化插件配置（config.py + config.json）
+
+        配置优先级（后加载覆盖前）：
+            1. DEFAULT_CONFIG（插件内默认值）
+            2. style/config/<plugin>_config.json（全局用户配置）
+        使用 deep_merge 递归合并，新增字段自动补默认值。
+        """
         config_py_path = os.path.join(plugin_path, "config.py")
         if not os.path.exists(config_py_path):
             self._plugin_configs[plugin_name] = {}
@@ -461,10 +467,13 @@ class PluginManager:
             if default is None or not isinstance(default, dict):
                 self._plugin_configs[plugin_name] = {}
                 return {}
+            from core.runtime import deep_merge
+
             plugin_cfg_json = os.path.join(plugin_path, "config.json")
             if not os.path.exists(plugin_cfg_json):
                 with open(plugin_cfg_json, "w", encoding="utf-8") as f:
                     json.dump(default, f, ensure_ascii=False, indent=2)
+
             # 全局样式配置
             style_dir = self._get_style_config_dir()
             if style_dir:
@@ -472,14 +481,11 @@ class PluginManager:
                 if os.path.exists(style_cfg):
                     with open(style_cfg, "r", encoding="utf-8") as f:
                         user_cfg = json.load(f)
-                    merged = {**default}
-                    for k, v in user_cfg.items():
-                        merged[k] = v
-                    for k, v in default.items():
-                        if k not in user_cfg:
-                            user_cfg[k] = v
+                    # deep_merge: default 做基底，user_cfg 覆盖其上，新增字段自动补默认值
+                    merged = deep_merge(default, user_cfg)
+                    # 写回磁盘，补齐新增字段
                     with open(style_cfg, "w", encoding="utf-8") as f:
-                        json.dump(user_cfg, f, ensure_ascii=False, indent=2)
+                        json.dump(merged, f, ensure_ascii=False, indent=2)
                     self._plugin_configs[plugin_name] = merged
                 else:
                     os.makedirs(style_dir, exist_ok=True)

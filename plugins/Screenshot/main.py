@@ -27,7 +27,7 @@ async def handle_screenshot(self_bot, bot, message, user_id, chat_type, permissi
     if raw_msg == "/屏幕截图":
         from .capture import capture_screen
         try:
-            path = capture_screen()
+            path = await asyncio.to_thread(capture_screen)
             _latest_screenshot = path
             await gracy_send_msg(target_id, GracyImage(file_path=path), chat_type=chat_type)
             await gracy_send_msg(target_id, GracyText(text="Save this screenshot? Reply /保存截图"), chat_type=chat_type)

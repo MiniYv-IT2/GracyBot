@@ -26,6 +26,10 @@ from core.monitor import monitor_manager, register_health_check_routes
 from core.gracy_adapter.pool import adapter_pool
 from core.gracy_adapter.identity import IdentityTag
 from core.event import event_bus
+from core.runtime import Runtime, RuntimeRegistry
+from core.logger_manager import setup_runtime_logger
+from core.pipeline import Pipeline
+from core.pipeline.stages import SecurityFilter, BuiltinCommands, CommandMatcher, PluginHandler, ResponseSender
 
 def _resolve_plugins_dir() -> str:
     """自动确定插件目录路径
@@ -100,16 +104,19 @@ def _discover_instance_configs() -> list[dict]:
     return results
 
 
-def _register_instance(cfg: dict, default: bool = False) -> None:
-    """根据实例配置创建一个适配器并注册到池"""
+def _register_instance(cfg: dict, default: bool = False, runtime=None) -> None:
+    """根据实例配置创建一个适配器并注册到池
+
+    Args:
+        cfg: 实例配置字典
+        default: 是否设为默认适配器
+        runtime: 关联的 Runtime 实例（P1 起传入，替代从 cfg 读取身份）
+    """
     platform = cfg.get("platform", "onebot")
     bot_name = cfg.get("bot_name", cfg.get("_dir_name", "unknown"))
-    robot_id = cfg.get("robot_id", "")
-    master_id = cfg.get("master_id", "")
-    from core.config import MASTER_ID as _fallback_master
-    if not master_id and _fallback_master:
-        master_id = _fallback_master
-    tag = IdentityTag(platform=platform, bot_name=bot_name)
+    robot_id = runtime.robot_id if runtime else cfg.get("robot_id", "")
+    master_id = runtime.master_id if runtime else cfg.get("master_id", "")
+    tag = runtime.adapter_tag if runtime else IdentityTag(platform=platform, bot_name=bot_name)
 
     conn_type = cfg.get("type", "http")
 
@@ -136,9 +143,9 @@ def _register_instance(cfg: dict, default: bool = False) -> None:
         return
 
     adapter.tag = tag
-    # 将 master_id 挂在适配器上，供 handler 等模块按实例查询
     adapter._instance_master_id = master_id
     adapter._instance_robot_id = robot_id
+    adapter._runtime = runtime  # 关联 Runtime 实例（P2 阶段替代 _instance_*）
     adapter_pool.register(adapter, tag, default=default)
     logger.info(f"  ➕ [{tag.log_tag}] {platform}/{bot_name} ({conn_type}) master={master_id[:4]}****")
 
@@ -190,6 +197,11 @@ def _get_parser_by_self_id(self_id: str):
     return parser
 
 
+# 事件去重缓存（key=用户+内容+时间窗，TTL=1秒）
+_event_dedup_cache: dict = {}
+_DEDUP_TTL = 1.0
+
+
 @app.route('/callback', methods=['POST'])
 async def callback():
     context = {
@@ -203,8 +215,8 @@ async def callback():
     start_time = time.time()
 
     try:
-        # 检查Content-Type
-        if request.content_type != 'application/json':
+        # 检查Content-Type（兼容 charset 参数，如 application/json; charset=utf-8）
+        if 'application/json' not in (request.content_type or ''):
             error_msg = f"不支持的Content-Type: {request.content_type}"
             logger_manager.log_with_context(logger, logging.WARNING, error_msg, context)
             monitor_manager.record_message_error()
@@ -227,6 +239,24 @@ async def callback():
         # 心跳/metaevent 静默处理，不记日志
         if json_data.get("post_type") == "meta_event":
             return jsonify({"retcode": 0})
+
+        # ── 事件去重：同机器人+同用户+同内容在1秒内只处理一次 ──
+        dedup_key = (
+            str(json_data.get("self_id", "")),
+            str(json_data.get("user_id", "")),
+            str(json_data.get("raw_message", "")),
+            str(json_data.get("notice_type", "")),
+            int(time.time() / _DEDUP_TTL),
+        )
+        now = time.time()
+        # 清理过期缓存
+        stale = [k for k, v in list(_event_dedup_cache.items()) if now - v > _DEDUP_TTL * 2]
+        for k in stale:
+            _event_dedup_cache.pop(k, None)
+        if dedup_key in _event_dedup_cache:
+            # 重复事件，静默丢弃
+            return jsonify({"retcode": 0})
+        _event_dedup_cache[dedup_key] = now
 
         # ── 根据 self_id 路由到对应适配器实例 ──
         self_id = str(json_data.get("self_id", ""))
@@ -537,7 +567,7 @@ def _interactive_connection_setup():
 
 
 def _init_instances() -> None:
-    """扫描 style/instances/ 目录，加载所有实例配置并注册到 AdapterPool"""
+    """扫描 style/instances/ 目录，为每个实例创建 Runtime + 独立 Pipeline"""
     configs = _discover_instance_configs()
     if not configs:
         logger.warning("⚠️ 未发现任何实例配置（style/instances/<name>/config.json）")
@@ -546,24 +576,46 @@ def _init_instances() -> None:
 
     for idx, cfg in enumerate(configs):
         try:
-            _register_instance(cfg, default=(idx == 0))
+            instance_name = cfg.get("_dir_name", f"instance_{idx}")
+            robot_id = cfg.get("robot_id", "")
+            master_id = cfg.get("master_id", "")
+            platform = cfg.get("platform", "onebot")
+            bot_name = cfg.get("bot_name", instance_name)
+
+            # 1. 创建 Runtime 实例
+            tag = IdentityTag(platform=platform, bot_name=bot_name)
+            runtime = Runtime(
+                instance_name=instance_name,
+                robot_id=robot_id,
+                master_id=master_id,
+                adapter_tag=tag,
+                plugin_manager=plugin_manager,
+                adapter_pool=adapter_pool,
+            )
+
+            # 2. 创建独立 Pipeline
+            pipeline = Pipeline()
+            pipeline.add_stage(SecurityFilter())
+            pipeline.add_stage(BuiltinCommands())
+            pipeline.add_stage(CommandMatcher())
+            pipeline.add_stage(PluginHandler())
+            pipeline.add_stage(ResponseSender())
+            runtime.pipeline = pipeline
+
+            # 3. 创建 Runtime 独立日志器
+            runtime.logger = setup_runtime_logger(instance_name, bot_name=bot_name)
+
+            # 4. 注册到 RuntimeRegistry
+            RuntimeRegistry.register(runtime)
+
+            # 5. 注册适配器到 AdapterPool
+            _register_instance(cfg, default=(idx == 0), runtime=runtime)
+
         except Exception as e:
-            logger.error(f"❌ 注册实例失败 {cfg.get('_dir_name', '?')}: {e}")
+            logger.error(f"❌ 初始化实例失败 {cfg.get('_dir_name', '?')}: {e}")
 
     count = adapter_pool.count
-    logger.info(f"✅ 实例池初始化完成: {count} 个适配器")
-
-    # 向后兼容：更新 config.ROBOT_ID / MASTER_ID 供旧插件导入
-    default = adapter_pool.get_default()
-    if default:
-        rid = getattr(default, '_instance_robot_id', '')
-        if rid:
-            from core.config import _update_robot_id
-            _update_robot_id(rid)
-        mid = getattr(default, '_instance_master_id', '')
-        if mid:
-            from core.config import _update_master_id
-            _update_master_id(mid)
+    logger.info(f"✅ 实例池初始化完成: {count} 个适配器, {RuntimeRegistry.count()} 个 Runtime")
 
 
 def _parse_cli_args() -> None:
@@ -729,6 +781,8 @@ async def run_bot():
             cfg = Config()
             cfg.bind = [f"0.0.0.0:{CALLBACK_PORT}"]
             cfg.loglevel = "warning"
+            cfg.accesslog = None
+            cfg.errorlog = None
 
             await serve(app, cfg)
         except Exception as e:
