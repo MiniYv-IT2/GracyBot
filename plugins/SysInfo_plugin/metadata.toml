@@ -3,7 +3,7 @@
 
 [plugin]
 name        = "SysInfo_plugin"
-version     = "1.1.0"
+version     = "1.2.0"
 author      = "GracyBot开发团队"
 description = "系统状态查询插件，展示机器人运行信息、系统资源占用等详情"
 

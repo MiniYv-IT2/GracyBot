@@ -1,6 +1,6 @@
 [plugin]
 name        = "音乐点歌插件"
-version     = "1.0.0"
+version     = "1.1.0"
 author      = "GracyBot开发团队"
 description = "QQ音乐搜索与点歌插件，支持搜索歌名、查看详情、获取播放链接，搜索结果以精美图片展示"
 

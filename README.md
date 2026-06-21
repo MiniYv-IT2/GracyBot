@@ -9,14 +9,14 @@
   <img src="https://img.shields.io/badge/Platform-Windows%20|%20Linux%20|%20macOS-lightgrey" alt="Platform" />
   <img src="https://img.shields.io/badge/Status-Active-brightgreen" alt="Status" />
   <img src="https://img.shields.io/badge/License-MIT-green" alt="License" />
-  <img src="https://img.shields.io/badge/Version-v1.9.25-orange" alt="Version" />
+  <img src="https://img.shields.io/badge/Version-v1.9.54-orange" alt="Version" />
 </p>
 
 <p align="center">
   <strong>中文</strong> | <a href="README_EN.md">English</a>
 </p>
 
-> 想给自己的 QQ 搞个智能机器人？GracyBot 就是为此而生的。基于 **Python 3.11+** & **NapCat** 的个性化定制 QQ 机器人框架，主打安全稳定、插件化扩展与便捷更新。
+> 想给自己的 QQ 搞个智能机器人？GracyBot 就是为此而生的。基于 **Python 3.11+** 的个性化定制 QQ 机器人框架，支持 **NapCat (OneBot)** 与 **QQ 官方个人机器人 API** 双协议，主打安全稳定、插件化扩展与便捷更新。
 
 **作者**：小禹 / MiniYv | 湖南汽车工程职业大学 · 计算机网络技术专业
 **团队**：GracyBot 开发团队
@@ -48,6 +48,35 @@
 ---
 
 ## 更新变化
+
+### v1.9.54 (2026-06-21)
+
+#### 🚀 QQ 官方个人机器人适配器（重大更新）
+新增 `qq_official` 适配器，支持 QQ 官方个人机器人 API v2（WebSocket Gateway），无需 NapCat 即可运行。
+
+**架构变更**：从单文件拆分为 11 文件 Mixin 多模块架构：
+
+`api.py` + `auth.py` + `message.py` + `media.py` + `bot.py` + `gateway.py` + `protocol.py` + `sender.py` + `adapter.py` + `bind.py` + `factory.py`
+
+| 模块 | 说明 |
+|------|------|
+| **Gateway 长连接** | WebSocket 连接与会话保持，支持自动重连与心跳 |
+| **OAuth2 鉴权** | 自动获取与续期 Access Token |
+| **富媒体上传** | 图片、语音的本地文件/base64 上传链路 |
+| **消息转换** | QQ 官方 Payload ↔ GracyEvent 双向转换 |
+
+#### 🎯 新增 Gracone 兼容层插件
+`Gracone_Plugin` — 让 NoneBot 插件可直接运行在 GracyBot 上。
+
+目前已适配的 NoneBot 插件：
+- **中国象棋**（cchess）— 人机对战，含 Stockfish 引擎
+- **Kawaii 状态图**（nonebot_plugin_kawaii_status）— 系统状态图生成
+
+#### 🧹 适配器代码优化
+- **统一日志命名**：`Gracy.QQPersonal` → `Gracy.QQOfficial`
+- **裁剪调试日志**：移除 media.py 冗余重试逻辑和文件大小日志
+- **删除硬编码**：Easysearch 等插件不再写死 Linux 路径 `/usr/bin/chromium`
+- **修复文字+图片组合发送**：`sender.py` 中 `content = ""` bug 导致图片上传后文字丢失
 
 ### v1.9.25 (2026-06-12)
 
@@ -100,7 +129,7 @@
 ## 核心特性
 
 - **模块化架构** — 配置管理 / 日志系统 / 安全模块 / 监控面板 / 插件管理器分离，职责清晰
-- **多协议适配（GracyAdapter）** — 统一适配层，支持 HTTP 回调、WebSocket 正向、WebSocket 反向三种连接模式
+- **多协议适配（GracyAdapter）** — 统一适配层，支持 OneBot (NapCat) HTTP/WebSocket 与 QQ 官方个人机器人 WebSocket Gateway 双协议
 - **多实例多账号** — 单进程支持多个 QQ 号同时在线，各账号独立配置、独立路由、独立处理，`gracy instance` CLI 命令管理实例
 - **企业级安全防护** — 日志自动脱敏（QQ号/API Key/密码）、危险命令拦截、输入验证、频率限制、权限分级、审计日志
 - **插件化生态** — 插件即目录，放入 `plugins/` 自动注册，支持版本控制、依赖管理、循环依赖检测、热重载
@@ -114,7 +143,7 @@
 ## 项目结构
 
 ```
-GracyBot_V1.9.25/
+GracyBot_V1.9.54/
 ├── bot.py                      # 启动入口（仅调用 core/main.py）
 ├── config.json                 # 主配置文件
 ├── config.template.json        # 配置模板
@@ -138,10 +167,17 @@ GracyBot_V1.9.25/
 │       ├── message.py          # 消息段类型（Text/Image/At/Reply/Voice/File）
 │       ├── send.py             # 统一消息发送接口
 │       ├── gracy_bot.py        # GracyBot 统一入口
-│       └── onebot/             # OneBot 平台实现
-│           ├── http.py         # HTTP 适配器
-│           ├── ws.py           # WebSocket 适配器（正向+反向）
-│           └── cq.py           # CQ 码解析
+│       ├── onebot/             # OneBot 平台实现（NapCat）
+│       │   ├── http.py         # HTTP 适配器
+│       │   ├── ws.py           # WebSocket 适配器（正向+反向）
+│       │   └── cq.py           # CQ 码解析
+│       └── qq_official/        # QQ 官方个人机器人适配器
+│           ├── api.py          # Mixin 统一入口
+│           ├── auth.py         # OAuth2 Token
+│           ├── gateway.py      # WebSocket Gateway 连接
+│           ├── protocol.py     # 协议转换
+│           ├── media.py        # 富媒体上传
+│           └── ...             # sender/adapter/bind/factory 等
 │
 ├── plugins/                    # 插件目录（即插即用，放入即注册）
 │
@@ -161,8 +197,9 @@ GracyBot_V1.9.25/
 ## 环境要求
 
 - **Python**: 3.11+
-- **NapCat**: OneBot v11 协议端（QQ 机器人必备，负责对接 QQ 协议）
-- **Python 依赖**: Quart、requests、psutil、Pillow、py-cpuinfo、rarfile（详见 `requirements.txt`）
+- **NapCat（可选）**: OneBot v11 协议端，使用 OneBot 适配器时必备
+- **QQ 官方机器人（可选）**: 使用 QQ 官方个人机器人适配器时无需 NapCat，需前往 QQ 开放平台注册
+- **Python 依赖**: Quart、aiohttp、psutil、Pillow、py-cpuinfo（详见 `requirements.txt`）
 - **Node.js / npm**: 18+
 - **前端依赖**: React、TypeScript、Vite、TailwindCSS（GracyUI 插件内置，`npm install` 即可）
 - **操作系统**: Windows 10+ / Linux（Debian 11+）/ macOS
@@ -264,11 +301,17 @@ def handle_my_plugin(plugin_manager, send_msg, data, sender_id, chat_type, targe
 
 ## 连接模式
 
+### OneBot（NapCat）模式
+
 | 模式 | 说明 | 适用场景 |
 |---|---|---|
 | `http` | NapCat 推送消息到 Bot 的 `/callback` 端点 | 最简单，适合新手 |
 | `ws_forward` | Bot 主动连接 NapCat WebSocket | Bot 与 NapCat 同机部署 |
 | `ws_reverse` | NapCat 连接 Bot 的 WebSocket | Bot 与 NapCat 不在同机 |
+
+### QQ 官方机器人模式
+
+`qq_official` 适配器使用 QQ 官方 API v2 **WebSocket Gateway** 长连接，无需 NapCat，无需配置 `connection_mode`。连接由适配器自动管理（鉴权 → 连接 → 心跳 → 重连）。
 
 ---
 
@@ -276,10 +319,10 @@ def handle_my_plugin(plugin_manager, send_msg, data, sender_id, chat_type, targe
 
 - **后端**: Python 3.11+ / Quart / Hypercorn
 - **前端（GracyUI）**: React / TypeScript / Vite / TailwindCSS
-- **协议适配层（GracyAdapter）**: 抽象通用接口，当前已实现 OneBot v11（NapCat）
-- **依赖**: Quart、requests、psutil、Pillow、py-cpuinfo、rarfile
+- **协议适配层（GracyAdapter）**: 抽象通用接口，已实现 OneBot v11（NapCat）+ QQ 官方个人机器人 API v2
+- **依赖**: Quart、requests、psutil、Pillow、py-cpuinfo、rarfile、aiohttp
 
-> GracyAdapter 采用平台无关设计，OneBot 只是首个实现的适配器。后续将陆续接入 Telegram Bot API、Discord、微信等更多平台，扩展至多端机器人生态。
+> GracyAdapter 采用平台无关设计，OneBot 和 QQ 官方 API 是已实现的适配器。后续将陆续接入 Telegram Bot API、Discord、微信等更多平台，扩展至多端机器人生态。
 
 ---
 

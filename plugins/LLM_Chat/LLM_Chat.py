@@ -1,5 +1,5 @@
 import asyncio
-from core.config import MASTER_ID
+from core.config import get_current_master_id
 from core.decorators.registration import on_fallback
 from .core.event_handler import (
     is_master, handle_chat_help, handle_set_openai, handle_set_vision_model,
@@ -46,7 +46,7 @@ async def handle_llm_chat(self_bot, bot, message, user_id, chat_type, permission
             await handle_ai_chat(bot, target_id, chat_type, chat_content, user_id, nickname, chat_id, message.get("raw_data", {}))
             return True
     
-    if is_master(user_id, MASTER_ID):
+    if is_master(user_id, get_current_master_id()):
         if chat_type == "group" and (clean_msg.startswith("/设置OpenAI") or clean_msg.startswith("/设置视觉模型") or clean_msg.startswith("/视觉模型开关")):
             await bot(target_id, "❌ 配置命令仅支持私聊", chat_type=chat_type)
             return True

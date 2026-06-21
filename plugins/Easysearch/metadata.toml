@@ -1,6 +1,6 @@
 [plugin]
 name        = "易搜助手"
-version     = "1.0.0"
+version     = "1.0.1"
 author      = "GracyBot开发团队"
 description = "多引擎浏览器搜索与网页浏览插件，支持必应、百度、谷歌、搜狗、Yandex五大搜索引擎，搜索结果以手机截图风格竖屏图片展示"
 

@@ -1,6 +1,6 @@
 [plugin]
 name        = "异环攻略插件"
-version     = "1.0.0"
+version     = "1.0.1"
 author      = "小禹"
 description = "异环(NTE)攻略查询插件 — 角色图鉴/弧盘大全/升级计算器/材料查询"
 

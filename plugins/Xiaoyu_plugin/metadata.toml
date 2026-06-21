@@ -1,6 +1,6 @@
 [plugin]
 name        = "小禹插件"
-version     = "2.0.0"
+version     = "2.0.1"
 author      = "GracyBot开发团队"
 description = "官方核心控制中枢，支持时间查询、主人/机器人QQ变更、黑名单管理、热重载开关、帮助图片、插件依赖安装等功能"
 
