@@ -1,0 +1,154 @@
+"""QQ 官方个人机器人协议转换
+
+负责：
+1. 入站：QQ 官方 WebSocket 事件 → GracyEvent
+2. 出站：GracyMsg 列表 → QQ 官方 API payload
+"""
+
+import json
+import logging
+from typing import List, Optional
+
+from core.gracy_adapter.event import GracyEvent
+from core.gracy_adapter.identity import IdentityTag
+from core.gracy_adapter.message import GracyMsg, GracyText, GracyImage, GracyVoice
+
+_logger = logging.getLogger("Gracy.QQOfficial.protocol")
+
+# ──────────────────────────────────────
+# 入站：QQ 官方事件 → GracyEvent
+# ──────────────────────────────────────
+
+
+def parse_event(payload: dict, tag: IdentityTag) -> Optional[GracyEvent]:
+    """将 QQ 官方 WebSocket 事件转换为 GracyEvent
+
+    Args:
+        payload: 原始 WebSocket 消息字典（op=0 的 Dispatch）
+        tag: 适配器标识
+
+    Returns:
+        转换后的 GracyEvent，无法转换返回 None
+    """
+    event_type = payload.get("t", "")
+    data = payload.get("d", {}) or {}
+
+    if event_type == "C2C_MESSAGE_CREATE":
+        return _parse_c2c_message(data, tag)
+    elif event_type in ("AT_MESSAGE_CREATE", "GROUP_AT_MESSAGE_CREATE", "MESSAGE_CREATE"):
+        return _parse_group_message(data, tag)
+    else:
+        _logger.debug(f"[QQOfficial] 忽略未处理的事件类型: {event_type}")
+        return None
+
+
+def _parse_c2c_message(data: dict, tag: IdentityTag) -> Optional[GracyEvent]:
+    """解析单聊消息"""
+    author = data.get("author", {}) or {}
+    content_data = data.get("content", "")
+    msg_id = data.get("id", "")
+
+    if isinstance(content_data, dict):
+        raw_text = json.dumps(content_data, ensure_ascii=False)
+    else:
+        raw_text = str(content_data)
+
+    return GracyEvent(
+        event_type="message",
+        chat_type="private",
+        sender_id=author.get("user_openid", ""),
+        message_id=msg_id or data.get("msg_id", ""),
+        raw_text=raw_text.strip(),
+        raw_data=data,
+        tag=tag,
+    )
+
+
+def _parse_group_message(data: dict, tag: IdentityTag) -> Optional[GracyEvent]:
+    """解析群聊消息"""
+    author = data.get("author", {}) or {}
+    content_data = data.get("content", "")
+    msg_id = data.get("id", "")
+
+    if isinstance(content_data, dict):
+        raw_text = json.dumps(content_data, ensure_ascii=False)
+    else:
+        raw_text = str(content_data)
+
+    return GracyEvent(
+        event_type="message",
+        chat_type="group",
+        sender_id=author.get("member_openid", ""),
+        message_id=msg_id or data.get("msg_id", ""),
+        raw_text=raw_text.strip(),
+        raw_data=data,
+        tag=tag,
+        group_id=data.get("group_openid", ""),
+    )
+
+
+# ──────────────────────────────────────
+# 出站：GracyMsg → QQ 官方发送 payload
+# ──────────────────────────────────────
+
+
+def build_send_payload(
+    target: str,
+    segments: List[GracyMsg],
+    chat_type: str,
+    msg_id: str = "",
+) -> dict:
+    """将 GracyMsg 列表转换为 QQ 官方发送 JSON payload
+
+    Args:
+        target: openid 或 group_openid
+        segments: GracyMsg 消息段列表
+        chat_type: "private" | "group"
+        msg_id: 被动回复的消息 ID（可选）
+
+    Returns:
+        dict，包含 msg_type、content 等字段
+    """
+    result = {"msg_type": 0, "content": "", "msg_id": msg_id}
+
+    # 检查是否有图片
+    has_image = any(isinstance(seg, GracyImage) for seg in segments)
+
+    text_parts = []
+    image_url = ""
+    voice_url = ""
+
+    for seg in segments:
+        if isinstance(seg, GracyText):
+            text_parts.append(seg.text)
+        elif isinstance(seg, str):
+            text_parts.append(seg)
+        elif isinstance(seg, GracyImage):
+            if seg.url:
+                image_url = seg.url
+            elif seg.file_path:
+                image_url = seg.file_path
+            else:
+                _logger.debug(f"[QQOfficial] 忽略未知附件类型: {seg.content_type}")
+        elif isinstance(seg, GracyVoice):
+            voice_url = seg.url or seg.file_path or ""
+
+        # 其他类型暂不处理
+        elif hasattr(seg, '__class__'):
+            _logger.warning(f"[QQOfficial] 不支持的消息段类型: {type(seg).__name__}")
+
+    content = "".join(text_parts)
+
+    if voice_url:
+        result["msg_type"] = 7  # 富媒体
+        result["voice_url"] = voice_url
+        result["content"] = content
+    elif image_url:
+        result["msg_type"] = 7  # 富媒体
+        result["image_url"] = image_url
+        result["content"] = content
+    else:
+        result["msg_type"] = 0  # 文本
+        result["content"] = content
+
+    return result

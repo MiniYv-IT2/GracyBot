@@ -26,9 +26,7 @@ BORDER_COLOR = (40, 45, 70)
 # ── 字体 ──
 _FONTS = {}
 _FONT_DIRS = [
-    "C:/Windows/Fonts/msyh.ttc",     # 微软雅黑
-    "C:/Windows/Fonts/msyhbd.ttc",   # 微软雅黑粗体
-    "C:/Windows/Fonts/simhei.ttf",   # 黑体
+    os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "..", "style", "resource", "DouyinSansBold.otf"),
 ]
 
 
@@ -38,7 +36,6 @@ def _get_font(size: int, bold: bool = False):
         for path in _FONT_DIRS:
             if os.path.exists(path):
                 try:
-                    idx = 1 if bold and 'msyhbd' in path else 0
                     _FONTS[key] = ImageFont.truetype(path, size, encoding='unic')
                     break
                 except Exception:

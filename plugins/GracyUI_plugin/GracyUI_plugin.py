@@ -88,9 +88,9 @@ def _boot_panel_and_notify():
         _master_id = get_current_master_id()
 
         # 检查是否首次运行（占位符值）
-        _is_first_run = not str(_master_id).isdigit()
+        _is_first_run = not _master_id
         if _is_first_run:
-            _logger.info("[GracyUI] 首次运行，跳过发送面板地址（请先编辑 config.json 填写 master_id）")
+            _logger.info("[GracyUI] master_id 未配置，跳过发送面板地址（请先编辑 config.json 填写 master_id）")
             _logger.info(f"[GracyUI] Quart 正在监听 http://0.0.0.0:{_PANEL_PORT}")
             return
 

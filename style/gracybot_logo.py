@@ -7,10 +7,16 @@ from typing import List, Dict, Tuple, Optional
 class Colors:
     # ANSI颜色代码
     RESET = '\033[0m'
-    PINK_LIGHT = '\033[95m'  # 浅粉色
+    RED = '\033[91m'         # 红
+    ORANGE = '\033[38;5;208m'  # 橙
+    YELLOW = '\033[93m'      # 黄
+    GREEN = '\033[92m'       # 绿
+    CYAN = '\033[96m'        # 青
+    BLUE = '\033[94m'        # 蓝
+    PURPLE = '\033[95m'      # 紫
+    PINK_LIGHT = '\033[95m'  # 浅粉色（兼容旧引用）
     PINK_MEDIUM = '\033[35m'  # 中粉色
     PINK_DARK = '\033[38;5;135m'  # 深粉色
-    CYAN = '\033[96m'  # 青色(用于装饰)
     WHITE = '\033[97m'  # 白色
     
     # 方块字符
@@ -72,7 +78,7 @@ class BlockLetterBuilder:
                 "████ ",
                 "█  █ ",
                 "█   █",
-                "█  ██"
+                "█   █"
             ],
             'A': [
                 " ███ ",
@@ -102,13 +108,13 @@ class BlockLetterBuilder:
                 "  █  "
             ],
             'B': [
-                "████ ",
-                "█  █ ",
-                "████ ",
-                "█  █ ",
-                "█  █ ",
-                "████ ",
-                "████ "
+                "█████",
+                "█   █",
+                "█   █",
+                "█████",
+                "█   █",
+                "█   █",
+                "█████"
             ],
             'O': [
                 " ███ ",
@@ -245,16 +251,16 @@ class GracyBotLogo:
     
     def _get_full_logo(self) -> List[str]:
         """获取完整版本的Logo(适合PC显示)"""
-        # 为GracyBot八个字母分别生成颜色 - 使用统一的粉色系
+        # 为GracyBot八个字母分别生成颜色 - 七彩渐变
         colors = [
-            self.colors.PINK_LIGHT,   # G
-            self.colors.PINK_LIGHT,   # r
-            self.colors.PINK_LIGHT,   # a
-            self.colors.PINK_LIGHT,   # c
-            self.colors.PINK_LIGHT,   # y
-            self.colors.PINK_LIGHT,   # B
-            self.colors.PINK_LIGHT,   # o
-            self.colors.PINK_LIGHT    # t
+            self.colors.RED,          # G — 红
+            self.colors.ORANGE,       # r — 橙
+            self.colors.YELLOW,       # a — 黄
+            self.colors.GREEN,        # c — 绿
+            self.colors.CYAN,         # y — 青
+            self.colors.BLUE,         # B — 蓝
+            self.colors.PURPLE,       # o — 紫
+            self.colors.RED,          # t — 红
         ]
         
         # 方块字符映射
@@ -287,22 +293,7 @@ class GracyBotLogo:
         if is_gracybot:
             logo_lines.append("")
         
-        # 添加樱花装饰
-        if is_gracybot:
-            # 使用方块字符创建装饰行，每个字母对应一个装饰元素
-            decor_line = "  "
-            # 创建樱花粉装饰元素
-            decor_element = self._colorize(self.colors.BLOCK_FULL, self.colors.PINK_LIGHT)
-            light_element = self._colorize(self.colors.BLOCK_LIGHT, self.colors.PINK_LIGHT)
-            # 交替使用不同亮度的装饰元素
-            for k in range(8):  # 固定8个装饰元素，对应GracyBot八个字母
-                if k % 2 == 0:
-                    decor_line += decor_element
-                else:
-                    decor_line += light_element
-                if k < 7:
-                    decor_line += " "
-            logo_lines.append(decor_line)
+
         
         return logo_lines
     
@@ -414,21 +405,27 @@ class GracyBotLogo:
         
         return logo_lines
     
+    @staticmethod
+    def _strip_ansi(text: str) -> str:
+        return re.sub('\033\[[0-9;]*m', '', text)
+
     def print_logo(self) -> None:
         """打印Logo到控制台"""
         logo = self.get_logo()
+        is_tty = sys.stdout.isatty()
         for line in logo:
-            print(line)
+            print(self._strip_ansi(line) if not is_tty else line)
         
         print("")
-        # 猫咪颜文字，高亮粉色标记 - 使用直接的ANSI颜色代码
         cat_emoji = "(=^･ω･^=)"
         cat_text = f"喵，Gracy酱被主人召回成功了喵{cat_emoji}"
-        print(f"\033[95m{cat_text}\033[0m")  # 粉色ANSI代码
-        
-        # 开发者信息 - 使用直接的ANSI颜色代码
         dev_info = "最好用的Bot框架 开发者QQ:192004908 小禹"
-        print(f"\033[35m{dev_info}\033[0m")  # 紫色ANSI代码(作为粉色的后备)
+        if is_tty:
+            print(f"\033[95m{cat_text}\033[0m")
+            print(f"\033[35m{dev_info}\033[0m")
+        else:
+            print(cat_text)
+            print(dev_info)
 
 # 适配方案 - 检测终端类型并选择合适的显示模式
 class TerminalAdapter:

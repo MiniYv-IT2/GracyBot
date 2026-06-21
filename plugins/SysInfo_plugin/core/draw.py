@@ -23,7 +23,7 @@ except ImportError:
 
 # 常量配置
 IMG_WIDTH = 800
-IMG_HEIGHT = 1300  # 增加高度以容纳多磁盘信息
+IMG_HEIGHT = 1100  # 基线高度，draw() 中会根据内容自适应
 BG_COLOR = (248, 249, 250)  # 更柔和的背景色
 TITLE_COLOR = (219, 112, 147)  # 粉玫瑰色
 TEXT_COLOR = (73, 80, 87)  # 更柔和的文字色
@@ -303,9 +303,8 @@ class SysInfoDrawer:
         """在指定位置绘制毛玻璃圆圈（从原背景裁剪并模糊）"""
         r = radius
         if self.original_bg:
-            # 从原始清晰背景裁剪圆圈区域，高斯模糊 + 白色半透明叠加
             region = self.original_bg.crop((x - r, y - r, x + r, y + r))
-            blurred = region.filter(ImageFilter.GaussianBlur(radius=12))
+            blurred = region.filter(ImageFilter.BoxBlur(4))
             white_tint = Image.new('RGBA', (r * 2, r * 2), (255, 255, 255, alpha))
             frosted = blurred.convert('RGBA')
             frosted = Image.alpha_composite(frosted, white_tint)
@@ -320,9 +319,8 @@ class SysInfoDrawer:
         """在指定区域绘制毛玻璃面板（从原背景裁剪并模糊）"""
         w, h = x2 - x1, y2 - y1
         if self.original_bg:
-            # 从原始清晰背景裁剪面板区域，高斯模糊 + 白色半透明叠加
             region = self.original_bg.crop((x1, y1, x2, y2))
-            blurred = region.filter(ImageFilter.GaussianBlur(radius=15))
+            blurred = region.filter(ImageFilter.BoxBlur(6))
             white_tint = Image.new('RGBA', (w, h), (255, 255, 255, alpha))
             frosted = blurred.convert('RGBA')
             frosted = Image.alpha_composite(frosted, white_tint)
@@ -383,15 +381,23 @@ class SysInfoDrawer:
 
     async def draw(self) -> str:
         """生成图片并返回路径"""
+        _t0 = time.time()
+        # 自适应画布高度
+        _disk_count = len(self.all_disks)
+        _img_height = max(IMG_HEIGHT, 1100 + _disk_count * 30)
         # 尝试加载随机背景图
         background = self._load_random_background()
+        logger.warning(f"[SysInfo⏱] draw: 背景加载={time.time()-_t0:.2f}s")
         
         # 创建图片（背景保持清晰，毛玻璃效果由面板/圆圈局部实现）
         if background:
-            img = background.convert("RGBA")
-            self.original_bg = background  # 保存原始背景供毛玻璃裁剪用
+            _t1 = time.time()
+            bg = background.resize((IMG_WIDTH, _img_height), Image.Resampling.LANCZOS)
+            img = bg.convert("RGBA")
+            self.original_bg = bg
+            logger.warning(f"[SysInfo⏱] draw: 背景resize={time.time()-_t1:.2f}s")
         else:
-            img = Image.new("RGBA", (IMG_WIDTH, IMG_HEIGHT), (*BG_COLOR, 255))
+            img = Image.new("RGBA", (IMG_WIDTH, _img_height), (*BG_COLOR, 255))
             self.original_bg = None
         draw = ImageDraw.Draw(img)
         self.img = img
@@ -410,7 +416,9 @@ class SysInfoDrawer:
         draw.text((title_x, title_y), title_text, font=self.font_title, fill=TITLE_COLOR)
 
         # 绘制机器人信息卡片
+        _t_card = time.time()
         await self._draw_robot_info_card(draw, img)
+        logger.warning(f"[SysInfo⏱] draw: 信息卡={time.time()-_t_card:.2f}s")
 
         # 解析进度数据
         progress_data, value_data = self._parse_progress_data()
@@ -455,13 +463,15 @@ class SysInfoDrawer:
         line_height = 30  # 增加行距
         
         # 计算文字区域总高度，绘制毛玻璃背景面板
-        text_line_count = 14  # OS → 框架版本 共约14行
+        text_line_count = 13 + len(self.all_disks)  # 根据磁盘数量自适应
         text_area_height = text_line_count * line_height + 30
+        _t2 = time.time()
         self._draw_frosted_panel(
             text_x - 15, text_start_y - 15,
             text_x + CARD_WIDTH + 15, text_start_y + text_area_height,
             radius=18, alpha=165
         )
+        logger.warning(f"[SysInfo⏱] draw: 毛玻璃面板={time.time()-_t2:.2f}s")
 
         # 系统完整信息
         os_full = self.sys_info.get("系统版本", "未知系统")
@@ -486,11 +496,11 @@ class SysInfoDrawer:
         draw.text((text_x, text_start_y + line_height*line_idx), shell_term_text, font=self.font_text, fill=TEXT_COLOR)
 
         # 所有磁盘信息（游戏血条样式）
+        import re
         line_idx += 1
         draw.text((text_x, text_start_y + line_height * line_idx), "—— 磁盘分区 ——",
                   font=self.font_subtitle, fill=TITLE_COLOR)
 
-        import re
         bar_w = 320
         bar_h = 16
         bar_x = text_x + 55
@@ -509,25 +519,27 @@ class SysInfoDrawer:
                 mount, total_gb, used_gb, pct = "?", "0", "0", 0.0
 
             draw.text((text_x, y), mount, font=self.font_text, fill=TEXT_COLOR)
+            mount_w = draw.textbbox((0, 0), mount, font=self.font_text)[2]
+            _bar_x = bar_x + mount_w
 
             draw.rounded_rectangle(
-                (bar_x, bar_y, bar_x + bar_w, bar_y + bar_h),
+                (_bar_x, bar_y, _bar_x + bar_w, bar_y + bar_h),
                 radius=bar_radius, fill=(210, 210, 210)
             )
             fill_w = int(bar_w * pct / 100)
             if fill_w > bar_radius * 2:
                 draw.rounded_rectangle(
-                    (bar_x, bar_y, bar_x + fill_w, bar_y + bar_h),
+                    (_bar_x, bar_y, _bar_x + fill_w, bar_y + bar_h),
                     radius=bar_radius, fill=TITLE_COLOR
                 )
             elif fill_w > 0:
                 draw.rounded_rectangle(
-                    (bar_x, bar_y, bar_x + max(fill_w, bar_radius * 2), bar_y + bar_h),
+                    (_bar_x, bar_y, _bar_x + max(fill_w, bar_radius * 2), bar_y + bar_h),
                     radius=bar_radius, fill=TITLE_COLOR
                 )
 
             pct_text = f"{used_gb} / {total_gb} GB ({pct:.1f}%)"
-            draw.text((bar_x + bar_w + 10, y), pct_text, font=self.font_text, fill=TEXT_COLOR)
+            draw.text((_bar_x + bar_w + 10, y), pct_text, font=self.font_text, fill=TEXT_COLOR)
 
         # IO读写速度
         line_idx += 1
@@ -568,10 +580,12 @@ class SysInfoDrawer:
         footer_text = f"Created By GracyBot v{bot_version[1:] if bot_version.startswith('v') else bot_version}"
         footer_bbox = draw.textbbox((0, 0), footer_text, font=self.font_footer)
         footer_x = IMG_WIDTH - footer_bbox[2] - 30
-        footer_y = IMG_HEIGHT - footer_bbox[3] - 30  # 增加底部留白
+        footer_y = _img_height - footer_bbox[3] - 30
         draw.text((footer_x, footer_y), footer_text, font=self.font_footer, fill=(0, 0, 0))
 
         # 保存图片（固定路径覆盖旧图，不累积历史文件）
+        _t9 = time.time()
         img_rgb = img.convert("RGB")
-        img_rgb.save(OUTPUT_PATH, format="PNG", optimize=True)
+        img_rgb.save(OUTPUT_PATH, format="PNG")
+        logger.warning(f"[SysInfo⏱] draw: 保存={time.time()-_t9:.2f}s")
         return OUTPUT_PATH

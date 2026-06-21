@@ -123,7 +123,7 @@ class GracyOneBotWS(GracyAdapter):
             return self._call_api_impl(action, params, timeout)
 
     def _call_api_impl(self, action: str, params: dict, timeout: float) -> Optional[dict]:
-        """call_api 的锁内实现 — 通过队列交 recv_loop 发送 + 条件变量等响应"""
+        """call_api 的锁内实现 — 队列 → recv_loop 发送 + 条件变量等响应"""
         import time
         if not self._ws:
             self._logger.warning(f"[OneBotWS] call_api('{action}') 失败: 未连接")
@@ -139,7 +139,7 @@ class GracyOneBotWS(GracyAdapter):
 
         # 入队 → recv_loop 线程负责发送
         self._api_send_queue.put(action_data)
-        # ★ 唤醒 recv_loop 立即 drain 队列，避免等 recv 超时
+        # ★ 唤醒 recv_loop 立即 drain 队列，避免等超时
         if self._loop and self._loop.is_running() and self._queue_event:
             self._loop.call_soon_threadsafe(self._queue_event.set)
 
@@ -210,7 +210,7 @@ class GracyOneBotWS(GracyAdapter):
                 self._logger.error(f"[OneBotWS] get_platform_info 失败: {type(e).__name__}: {e}")
             self._platform_info_cache = result
             self._platform_info_cache_time = time.time()
-            self._logger.debug(f"[OneBotWS⏱] get_platform_info 耗时 {time.time() - t_api:.1f}s")
+            self._logger.warning(f"[OneBotWS⏱] get_platform_info 耗时 {time.time() - t_api:.1f}s")
             return result
 
     # ── 入站：解析 OneBot JSON → GracyEvent ──
@@ -421,9 +421,13 @@ class GracyOneBotWS(GracyAdapter):
 
         避免旧版「先 recv(timeout=0.5) 再 drain」带来的串行延迟。
         """
+        _cycle = 0
         while self._running:
+            _cycle += 1
             # ★ 消费 worker 线程入队的 API 请求（由本线程发送）
             await self._drain_api_send_queue_async(ws)
+            if _cycle % 20 == 0:
+                self._logger.debug(f"[OneBotWS] recv_loop 活跃 cycle={_cycle} qsize={self._api_send_queue.qsize()}")
 
             # 双监听：recv 或 队列事件（入队即唤醒）
             self._queue_event.clear()
@@ -439,45 +443,47 @@ class GracyOneBotWS(GracyAdapter):
             for task in pending:
                 task.cancel()
 
-            if recv_task in done:
-                try:
-                    raw = recv_task.result()
-                except websockets.ConnectionClosed as e:
-                    self._logger.warning(f"[OneBotWS] 远端关闭连接: {e}")
-                    break
-                if not isinstance(raw, str):
-                    continue
-                try:
-                    data = json.loads(raw)
-                except json.JSONDecodeError as e:
-                    self._logger.warning(f"[OneBotWS] JSON 解析失败: {e} | raw={raw[:200]}")
-                    continue
+            if recv_task not in done:
+                continue
 
-                # API 响应（有 echo 字段 + status 是字符串）→ 路由给 call_api
-                status_val = data.get("status")
-                if isinstance(status_val, str) and "echo" in data:
-                    echo = data.get("echo", "")
-                    self._logger.debug(f"[OneBotWS] 收到 API 响应 echo={echo}, status={status_val}")
-                    with self._api_condition:
-                        self._api_responses[echo] = data
-                        self._api_condition.notify_all()
-                    continue
+            try:
+                raw = recv_task.result()
+            except websockets.ConnectionClosed as e:
+                self._logger.warning(f"[OneBotWS] 远端关闭连接: {e}")
+                break
 
-                # 事件消息 → EventBus → Pipeline
-                event = self._parse_ws_message(data)
-                if event:
-                    try:
-                        from core.event import event_bus
-                        await event_bus.publish(event)
-                    except Exception as e:
-                        self._logger.error(f"[OneBotWS] EventBus 发送失败: {e}")
-            # else: event fired or timeout → loop back to drain queue immediately
+            if not isinstance(raw, str):
+                continue
+            try:
+                data = json.loads(raw)
+            except json.JSONDecodeError as e:
+                self._logger.warning(f"[OneBotWS] JSON 解析失败: {e} | raw={raw[:200]}")
+                continue
+
+            # API 响应（有 echo 字段 + status 是字符串）→ 路由给 call_api
+            status_val = data.get("status")
+            if isinstance(status_val, str) and "echo" in data:
+                echo = data.get("echo", "")
+                self._logger.debug(f"[OneBotWS] 收到 API 响应 echo={echo}, status={status_val}")
+                with self._api_condition:
+                    self._api_responses[echo] = data
+                    self._api_condition.notify_all()
+                continue
+
+            # 事件消息 → EventBus → Pipeline（线程池派发，不阻塞 recv_loop）
+            event = self._parse_ws_message(data)
+            if event:
+                try:
+                    from core.event import event_bus
+                    self._event_executor.submit(lambda: asyncio.run(event_bus.publish(event)))
+                except Exception as e:
+                    self._logger.error(f"[OneBotWS] EventBus 派发失败: {e}")
 
     async def _drain_api_send_queue_async(self, ws) -> None:
         """消费 worker 线程入队的 API 请求（异步版，recv_loop 内调用）"""
         while not self._api_send_queue.empty():
             action_data = self._api_send_queue.get_nowait()
-            self._logger.debug(
+            self._logger.warning(
                 f"[OneBotWS] recv_loop 发送 API: "
                 f"action={action_data.get('action')}, echo={action_data.get('echo')}"
             )

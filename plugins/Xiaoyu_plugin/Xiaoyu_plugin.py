@@ -527,6 +527,7 @@ async def _cmd_xiaoyu_help(target_id, chat_type, sender_id):
         drawer = _get_drawer()
         img_bytes = drawer.draw()
         # 写入缓存（固定文件名，每次覆盖替换上一张）
+        os.makedirs(os.path.dirname(XIAOYU_HELP_IMG), exist_ok=True)
         with open(XIAOYU_HELP_IMG, "wb") as f:
             f.write(img_bytes)
         # 发送帮助图片（通过 GracyAdapter 适配层）

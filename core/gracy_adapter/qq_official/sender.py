@@ -1,0 +1,121 @@
+"""消息发送 — QQ 官方适配器的高层发送逻辑
+
+处理消息段转换、媒体上传、降级策略和临时文件清理。
+"""
+
+import logging
+import os
+import tempfile
+import time
+from typing import List
+
+from core.gracy_adapter.message import GracyMsg, GracyText, GracyImage
+from core.gracy_adapter.qq_official.api import QQOfficialAPI
+from core.gracy_adapter.qq_official.protocol import build_send_payload
+
+_logger = logging.getLogger("Gracy.QQOfficial.sender")
+
+
+async def send_message(
+    api: QQOfficialAPI,
+    target: str,
+    segments: List[GracyMsg],
+    chat_type: str,
+    last_msg_id: str = "",
+    last_msg_id_time: float = 0.0,
+    tag=None,
+) -> bool:
+    """发送消息（高层封装）
+
+    处理流程：
+    1. file_data → 临时文件
+    2. 被动回复 msg_id
+    3. 消息段转 payload
+    4. 语音/图片上传
+    5. 发送（私聊/群聊）
+    6. 清理临时文件
+    """
+    if not segments:
+        _logger.warning("[QQOfficial] 消息段列表为空，跳过发送")
+        return False
+
+    # ── 1. file_data → 临时文件 ──
+    _temp_files = []
+    for seg in segments:
+        if isinstance(seg, GracyImage) and not seg.file_path and not seg.url and hasattr(seg, 'file_data') and seg.file_data:
+            try:
+                tmp = tempfile.NamedTemporaryFile(delete=False, suffix='.png')
+                tmp.write(seg.file_data)
+                tmp.close()
+                seg.file_path = tmp.name
+                _temp_files.append(tmp.name)
+            except Exception as e:
+                _logger.warning(f"[QQOfficial] 保存 file_data 临时文件失败: {e}")
+
+    # ── 2. 被动回复 msg_id ──
+    msg_id = ""
+    if last_msg_id and last_msg_id_time:
+        elapsed = time.time() - last_msg_id_time
+        max_age = 300 if chat_type == "group" else 3600
+        if elapsed < max_age:
+            msg_id = last_msg_id
+
+    try:
+        # ── 3. 消息段转 payload ──
+        payload = build_send_payload(target, segments, chat_type, msg_id=msg_id)
+        msg_type = payload.get("msg_type", 0)
+        content = payload.get("content", "")
+        image_url = payload.get("image_url", "")
+        voice_url = payload.get("voice_url", "")
+
+        # 保存原始文本（上传失败时降级）
+        text_fallback = ""
+        for seg in segments:
+            if isinstance(seg, GracyText):
+                text_fallback += seg.text
+            elif isinstance(seg, str) and seg.strip():
+                text_fallback += seg
+
+        # ── 4. 媒体上传 ──
+        media = None
+        if voice_url:
+            if chat_type == "private":
+                media = await api.upload_rich_media(openid=target, file_type=3, file_path=voice_url)
+            else:
+                media = await api.upload_rich_media_group(group_openid=target, file_type=3, file_path=voice_url)
+
+            if media:
+                msg_type = 7
+                content = ""
+            else:
+                _logger.warning("[QQOfficial] 语音上传失败，降级为文本发送")
+                msg_type = 1
+                content = text_fallback
+        elif image_url:
+            if chat_type == "private":
+                media = await api.upload_rich_media(openid=target, file_type=1, file_path=image_url)
+            else:
+                media = await api.upload_rich_media_group(group_openid=target, file_type=1, file_path=image_url)
+
+            if media:
+                msg_type = 7
+
+        # 空内容跳过
+        if not content and not media:
+            _logger.warning("[QQOfficial] 消息内容为空，跳过发送")
+            return False
+
+        # ── 5. 发送 ──
+        media_dict = {"file_info": media} if media else None
+        if chat_type == "private":
+            return await api.send_c2c_message(openid=target, msg_type=msg_type, content=content, media=media_dict, msg_id=payload.get("msg_id", ""))
+        else:
+            return await api.send_group_message(group_openid=target, msg_type=msg_type, content=content, media=media_dict, msg_id=payload.get("msg_id", ""))
+    finally:
+        # ── 6. 清理临时文件 ──
+        for f in _temp_files:
+            try:
+                if os.path.exists(f):
+                    os.unlink(f)
+            except Exception:
+                pass

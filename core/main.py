@@ -7,6 +7,7 @@ except RuntimeError:
     pass
 
 from quart import Quart, request, jsonify
+import importlib
 import json
 import os
 import threading
@@ -120,26 +121,19 @@ def _register_instance(cfg: dict, default: bool = False, runtime=None) -> None:
 
     conn_type = cfg.get("type", "http")
 
-    if platform == "onebot":
-        if conn_type in ("ws_forward", "ws_reverse"):
-            from core.gracy_adapter.onebot.ws import GracyOneBotWS
-            ws_mode = "forward" if conn_type == "ws_forward" else "reverse"
-            adapter = GracyOneBotWS(
-                mode=ws_mode,
-                host=cfg.get("host", "127.0.0.1"),
-                port=cfg.get("port", 3001),
-                access_token=cfg.get("access_token", ""),
-                robot_id=robot_id,
-            )
-        else:
-            from core.gracy_adapter.onebot.http import GracyOneBot
-            adapter = GracyOneBot(
-                napcat_url=cfg.get("http_url", "http://127.0.0.1:3000"),
-                callback_port=cfg.get("callback_port", CALLBACK_PORT),
-                robot_id=robot_id,
-            )
-    else:
-        logger.warning(f"⚠️ 不支持的平台: {platform}（实例 {cfg.get('_dir_name', '?')}），跳过")
+    # 动态加载适配器模块
+    try:
+        module = importlib.import_module(f"core.gracy_adapter.{platform}.adapter")
+        create_fn = getattr(module, "create_adapter")
+        adapter = create_fn(cfg)
+    except ImportError:
+        logger.warning(f"⚠️ 无法加载适配器模块: {platform}（实例 {cfg.get('_dir_name', '?')}），跳过")
+        return
+    except AttributeError:
+        logger.warning(f"⚠️ 适配器 {platform} 缺少 create_adapter 工厂函数，跳过")
+        return
+    except Exception as e:
+        logger.error(f"❌ 创建适配器实例失败 {platform}: {e}")
         return
 
     adapter.tag = tag
@@ -386,7 +380,7 @@ async def _send_welcome_msg(welcome_msg: str, target: str = ""):
             default = adapter_pool.get_default()
             if default and hasattr(default, '_instance_master_id'):
                 target = str(default._instance_master_id)
-        if not target or not target.isdigit():
+        if not target:
             logger.warning("⏭️ master_id 未配置，跳过发送启动消息")
             return
         await asyncio.sleep(1)
@@ -757,9 +751,9 @@ async def run_bot():
         _master_to_check = ""
         if default and hasattr(default, '_instance_master_id'):
             _master_to_check = str(default._instance_master_id)
-        _is_first_run = not _master_to_check.isdigit()
+        _is_first_run = not _master_to_check
         if _is_first_run:
-            logger.warning("⏭️ 首次运行，跳过发送启动消息（请先编辑 config.json 填写 QQ 号）")
+            logger.warning("⏭️ 首次运行或 master_id 未配置，跳过发送启动消息")
         else:
             try:
                 welcome_msg = f"🎉 GracyBot v{version_display} 启动成功！\n"

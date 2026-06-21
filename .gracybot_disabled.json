@@ -1,5 +1,3 @@
 {
-  "disabled": [
-    "ExamplePlugin"
-  ]
+  "disabled": ["Genshin_Plugin", "ExamplePlugin"]
 }

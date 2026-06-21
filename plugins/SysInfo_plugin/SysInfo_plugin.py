@@ -99,6 +99,37 @@ async def _get_gpu_info() -> Dict:
                         gpu_info["model"] = "  ".join(found)
             except:
                 pass
+            if gpu_info["model"] == "未检测到GPU":
+                try:
+                    drm_dir = "/sys/class/drm"
+                    if os.path.exists(drm_dir):
+                        gpus = []
+                        for entry in os.listdir(drm_dir):
+                            uevent = os.path.join(drm_dir, entry, "device", "uevent")
+                            if os.path.exists(uevent):
+                                with open(uevent) as f:
+                                    for line in f:
+                                        if line.startswith("DRIVER="):
+                                            drv = line.split("=", 1)[1].strip()
+                                            if drv and drv not in ("rockchip-drm", "dummy", "vgem"):
+                                                name = drv
+                                                compat_path = os.path.join(drm_dir, entry, "device", "of_node", "compatible")
+                                                if os.path.exists(compat_path):
+                                                    try:
+                                                        with open(compat_path) as cf:
+                                                            raw = cf.read().strip('\x00').strip()
+                                                            if raw:
+                                                                name = raw.split(",")[-1] if "," in raw else raw
+                                                    except:
+                                                        pass
+                                                gpus.append(name)
+                                            break
+                        if gpus:
+                            seen = set()
+                            unique = [g for g in gpus if not (g in seen or seen.add(g))]
+                            gpu_info["model"] = "  ".join(unique)
+                except:
+                    pass
         elif system == "Windows":
             try:
                 # wmic 在 Win11 24H2+ 已移除，改用 PowerShell Get-CimInstance
@@ -267,7 +298,6 @@ async def _get_robot_info() -> Dict:
 
     try:
         from core.gracy_adapter.send import gracy_get_platform_info
-        # get_platform_info 内部已含 get_login_info，无需重复调
         platform_info = await gracy_get_platform_info()
         if platform_info.get("friend_count") is not None:
             robot_info["friend_count"] = platform_info["friend_count"]
@@ -356,6 +386,24 @@ async def get_system_info() -> Dict:
                     cpu_info = "未知处理器"
             except ImportError:
                 cpu_info = platform.processor() or "未知处理器"
+            # ARM Linux：优先用 device-tree SoC 名（如 RK3528），替代 cortex-a53 等架构名
+            if sys.platform == "linux" and platform.machine() in ("aarch64", "armv7l", "armv8l"):
+                try:
+                    dt_compat = "/proc/device-tree/compatible"
+                    if os.path.exists(dt_compat):
+                        with open(dt_compat) as f:
+                            raw = f.read().strip('\x00').strip()
+                        if raw:
+                            parts = raw.split()
+                            if parts:
+                                soc = parts[-1]
+                                if "," in soc:
+                                    vendor, chip = soc.split(",", 1)
+                                    cpu_info = f"{vendor.capitalize()} {chip.upper()}"
+                                else:
+                                    cpu_info = soc.upper()
+                except:
+                    pass
             cpu_final = f"{cpu_info}（{cpu_cores}核）"
             _cache_set("cpu_info", cpu_final)
     except:
@@ -374,7 +422,7 @@ async def get_system_info() -> Dict:
     disk_final = "磁盘信息获取失败"
     all_disks_info = []
     try:
-        partitions = psutil.disk_partitions()
+        partitions = [p for p in psutil.disk_partitions() if p.fstype != 'squashfs' and not p.device.startswith('/dev/loop')]
         for part in partitions:
             try:
                 usage = psutil.disk_usage(part.mountpoint)
@@ -428,13 +476,21 @@ async def get_system_info() -> Dict:
     io_stats_task = _get_io_stats()
     net_info_task = asyncio.to_thread(_get_network_info)
     shell_task = _get_shell_terminal()
-    robot_task = _get_robot_info()
-    cpu_usage, gpu_info, io_stats, network_info, shell_terminal, robot_info = await asyncio.gather(
-        cpu_usage_task, gpu_info_task, io_stats_task, net_info_task, shell_task, robot_task
+    
+    # robot_info 可能因 NapCat API 超时阻塞 → 用 wait_for 限制时间
+    robot_task = asyncio.wait_for(_get_robot_info(), timeout=3.0)
+    
+    cpu_usage, gpu_info, io_stats, network_info, shell_terminal = await asyncio.gather(
+        cpu_usage_task, gpu_info_task, io_stats_task, net_info_task, shell_task
     )
+    try:
+        robot_info = await robot_task
+    except (asyncio.TimeoutError, Exception):
+        robot_info = {"qq": str(robot_id), "friend_count": None, "group_count": None,
+                      "platform": "OneBot", "protocol_version": None, "nickname": None}
     
     t_done = time.time()
-    logger.debug(f"[SysInfo⏱] 数据采集总耗时={t_done - t0:.1f}s | 并行段={t_done - t_extra:.1f}s")
+    logger.warning(f"[SysInfo⏱] total={t_done - t0:.1f}s gather={t_done - t_extra:.1f}s robot={robot_info.get('qq','?')} friend={robot_info.get('friend_count')} group={robot_info.get('group_count')}")
     
     # 返回完整信息字典
     return {
@@ -477,11 +533,11 @@ async def handle_status_cmd(target: str, chat_type: str):
         drawer = SysInfoDrawer(info)
         img_path = await drawer.draw()
         t_send = time.time()
-        logger.debug(f"[SysInfo⏱] 绘图耗时={t_send - t_draw:.1f}s")
+        logger.warning(f"[SysInfo⏱] 绘图={t_send - t_draw:.1f}s")
         # 图片消息（通过 GracyAdapter 适配层发送）
         if await gracy_send_msg(target, GracyImage(file_path=img_path), chat_type=chat_type):
             t_end = time.time()
-            logger.debug(f"[SysInfo⏱] 发送耗时={t_end - t_send:.1f}s | 总耗时={t_end - t_start:.1f}s")
+            logger.warning(f"[SysInfo⏱] 发送={t_end - t_send:.1f}s | 总={t_end - t_start:.1f}s")
             logger.info(sanitize_log(f"✅ 发送系统状态图片到{target}"))
         else:
             logger.error(sanitize_log(f"❌ 发送系统状态图片失败，目标：{target}"))

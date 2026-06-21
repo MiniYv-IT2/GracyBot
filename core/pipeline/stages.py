@@ -251,13 +251,42 @@ class BuiltinCommands(Stage):
                 resource=None, success=True, event_type="command",
                 details={"command": raw_msg[:50]}
             )
+            # 动态获取当前启用的适配器
+            try:
+                from core.gracy_adapter.pool import adapter_pool
+                tags = adapter_pool.all_tags
+                adapter_lines = []
+                for t in tags:
+                    # 根据 platform 推断连接方式
+                    if t.platform == "qq_official":
+                        proto = "WebSocket Gateway"
+                    elif t.platform == "onebot":
+                        proto = "HTTP/WS"
+                    elif t.platform == "telegram":
+                        proto = "Long Polling"
+                    elif t.platform == "discord":
+                        proto = "WebSocket"
+                    else:
+                        proto = "未知协议"
+                    adapter_lines.append(f"├ {t.platform}/{t.bot_name} ({proto})")
+                adapter_str = "\n".join(adapter_lines) if adapter_lines else "无"
+            except Exception:
+                adapter_str = "未知"
+
+            # 动态获取插件数量
+            try:
+                from core.plugin_manager import plugin_manager
+                plugin_count = len(plugin_manager.registry)
+            except Exception:
+                plugin_count = 0
+
             about_content = (
                 f"GracyBot v{BOT_VERSION[1:]}\n"
                 f"├ 作者: 小禹\n"
                 f"├ 定位: 跨平台 IM 轻量异步框架\n"
-                f"├ 协议: OneBot 11 (HTTP/WS)\n"
+                f"├ 适配器:\n{adapter_str}\n"
                 f"├ Python: {platform.python_version()}\n"
-                f"├ 插件: 10 个已注册\n"
+                f"├ 插件: {plugin_count} 个已注册\n"
                 f"└ 联系: QQ 192004908\n"
                 f"\n/帮助 查看所有命令"
             )

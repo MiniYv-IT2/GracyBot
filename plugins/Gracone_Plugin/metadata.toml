@@ -1,0 +1,14 @@
+[plugin]
+name        = "Gracone兼容层"
+version     = "1.0.0"
+author      = "GracyBot团队"
+description = "NoneBot2插件兼容层 — 让GracyBot无缝运行NoneBot插件"
+
+[handler]
+entry       = "handle_gracone"
+
+[trigger]
+commands       = ["/gracone"]
+chat_type      = ["private", "group"]
+permission     = "all"
+is_at_required = false

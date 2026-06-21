@@ -37,7 +37,7 @@
 | `ROBOT_ID` | str | 机器人 QQ 号（全局兜底，多账号优先用 `get_current_robot_id()`） |
 | `get_current_robot_id()` | → str | 获取当前消息上下文的机器人 QQ（多账号自动适配） |
 | `get_current_master_id()` | → str | 获取当前消息上下文的主人 QQ（多账号自动适配） |
-| `BOT_VERSION` | str | 框架版本号（eg: `"v1.9.25"`） |
+| `BOT_VERSION` | str | 框架版本号（eg: `"v1.9.54"`） |
 | `ROBOT_START_TIME` | float | 机器人启动时间戳 |
 | `AUTO_REPLIES` | dict | 自动回复配置 |
 

@@ -18,7 +18,6 @@
 
 import asyncio
 import logging
-import os
 from typing import List, Optional
 
 from core.gracy_adapter.message import GracyMsg
@@ -80,7 +79,9 @@ def _segments_preview(segments) -> str:
         elif hasattr(seg, 'text'):
             parts.append(seg.text)
         elif hasattr(seg, 'file_path'):
-            parts.append(f"[图片:{os.path.basename(seg.file_path)}]")
+            parts.append("[图片]")
+        elif hasattr(seg, 'url'):
+            parts.append("[图片]")
         elif hasattr(seg, 'target_id'):
             parts.append(f"[@:{seg.target_id}]")
         else:

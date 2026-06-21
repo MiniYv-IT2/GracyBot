@@ -18,6 +18,10 @@ IPHONE_UA = (
 )
 MAX_PAGE_HEIGHT = 4000
 
+# 跨平台浏览器路径检测：Linux 系统 Chromium → Windows Playwright 内置
+_CHROMIUM_PATHS = ["/usr/bin/chromium", "/usr/bin/chromium-browser", "/snap/bin/chromium"]
+_CHROMIUM_PATH = next((p for p in _CHROMIUM_PATHS if os.path.exists(p)), None)
+
 COMMON_PROXIES = [
     "http://127.0.0.1:7890",
     "http://127.0.0.1:10809",
@@ -74,7 +78,9 @@ async def _screenshot_page(url: str, wait_ms: int = 3000) -> Optional[str]:
 
     try:
         async with async_playwright() as pw:
-            launch_args = {"headless": True}
+            launch_args = {"headless": True, "args": ["--no-sandbox", "--disable-blink-features=AutomationControlled"]}
+            if _CHROMIUM_PATH:
+                launch_args["executable_path"] = _CHROMIUM_PATH
             if proxy:
                 launch_args["proxy"] = proxy
 
@@ -88,7 +94,7 @@ async def _screenshot_page(url: str, wait_ms: int = 3000) -> Optional[str]:
             )
             page = await context.new_page()
             _logger.info(f"[截图] 正在导航至: {url[:60]}...")
-            await page.goto(url, timeout=timeout, wait_until="domcontentloaded")
+            await page.goto(url, timeout=timeout, wait_until="networkidle")
             await page.wait_for_timeout(wait_ms)
 
             page_height = await page.evaluate("document.body.scrollHeight")

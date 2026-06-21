@@ -119,7 +119,7 @@ async def handle_music(ctx: PluginContext):
         await ctx.reply(f"📥 正在获取: {selected.name} — {selected.artist}")
 
         try:
-            detail = await play_song(_last_search_keyword, idx * 2)
+            detail = await play_song(_last_search_keyword, selected.idx)
         except Exception as e:
             _logger.error(f"[选择] 解析异常: {e}", exc_info=True)
             await ctx.reply(f"❌ 获取失败：{e}")

@@ -14,7 +14,7 @@ DEFAULT_CONFIG = {
     "master_id": "",
     "callback_port": 3002,
     "connection_mode": "http",
-    "bot_version": "v1.9.25",
+    "bot_version": "v1.9.54",
     "log_encoding": "utf-8",
     "log_level": "INFO",
     "debug_mode": False,
