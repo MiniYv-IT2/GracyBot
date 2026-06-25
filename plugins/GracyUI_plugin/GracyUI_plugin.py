@@ -29,8 +29,7 @@ def _start_quart():
 
             _panel_url = f"http://127.0.0.1:{_PANEL_PORT}"
 
-            from hypercorn.config import Config
-            from hypercorn.asyncio import serve
+            from core.webserv import Config, serve
 
             cfg = Config()
             cfg.bind = [f"0.0.0.0:{_PANEL_PORT}"]

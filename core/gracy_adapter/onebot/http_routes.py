@@ -8,7 +8,7 @@ import asyncio
 import time
 import traceback
 import logging
-from quart import request, jsonify
+from core.webserv import request, jsonify
 
 from core.gracy_adapter.message import GracyText
 from core.gracy_adapter.send import gracy_send_msg

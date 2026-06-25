@@ -3,7 +3,7 @@ import os
 import re
 import time as _time_module
 from datetime import datetime
-from quart import Blueprint, request
+from core.webserv import Blueprint, request
 
 logs_bp = Blueprint("logs", __name__, url_prefix="/api")
 

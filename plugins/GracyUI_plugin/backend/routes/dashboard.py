@@ -3,7 +3,7 @@ import time
 import platform
 import asyncio
 import psutil
-from quart import Blueprint
+from core.webserv import Blueprint
 
 dashboard_bp = Blueprint("dashboard", __name__, url_prefix="/api")
 

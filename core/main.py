@@ -6,7 +6,7 @@ try:
 except RuntimeError:
     pass
 
-from quart import Quart, request, jsonify
+from core.webserv import create_app, request, jsonify
 import importlib
 import json
 import os
@@ -64,7 +64,7 @@ def _resolve_plugins_dir() -> str:
 
 
 # ========== Quart 应用初始化 ==========
-app = Quart(__name__)
+app = create_app()
 
 
 # ── 实例配置路径 ──
@@ -325,7 +325,7 @@ async def run_bot():
 
     # 4. 注册健康检查路由（可选模块）
     try:
-        from core.monitor import register_health_check_routes
+        from core.webserv.routes import register_health_check_routes
         register_health_check_routes(app)
         logger.info("✅ 健康检查路由注册完成")
     except ImportError:
@@ -390,16 +390,8 @@ async def run_bot():
     http_port = config_manager.get("http_port", 0)
     if http_port:
         try:
-            from hypercorn.config import Config
-            from hypercorn.asyncio import serve
-
-            cfg = Config()
-            cfg.bind = [f"0.0.0.0:{http_port}"]
-            cfg.loglevel = "warning"
-            cfg.accesslog = None
-            cfg.errorlog = None
-
-            await serve(app, cfg)
+            from core.webserv import run_server
+            await run_server(app, http_port)
         except Exception as e:
             logger.critical(f"❌ HTTP 服务启动失败: {str(e)}", exc_info=True)
             # 通知主人

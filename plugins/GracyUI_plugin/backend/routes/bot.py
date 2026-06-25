@@ -1,5 +1,5 @@
 """Bot 信息 API — QQ 头像 / 昵称"""
-from quart import Blueprint
+from core.webserv import Blueprint
 
 bot_bp = Blueprint("bot", __name__, url_prefix="/api")
 

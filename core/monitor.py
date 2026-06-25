@@ -8,7 +8,6 @@ import threading
 from datetime import datetime
 from typing import Dict, List, Any
 from collections import deque
-from quart import jsonify
 
 from core.utils import logger
 
@@ -222,27 +221,3 @@ class MonitorManager:
 
 # 创建全局单例实例
 monitor_manager = MonitorManager()
-
-# 健康检查路由
-def register_health_check_routes(app):
-    """注册健康检查相关路由"""
-    
-    @app.route('/health', methods=['GET'])
-    async def health_check():
-        """健康检查端点"""
-        health_info = monitor_manager.get_health_check()
-        # 根据状态设置HTTP状态码
-        status_code = 200 if health_info["status"] == "healthy" else 503
-        return jsonify(health_info), status_code
-    
-    @app.route('/metrics', methods=['GET'])
-    async def get_metrics():
-        """性能指标端点"""
-        metrics = monitor_manager.get_performance_metrics()
-        return jsonify(metrics)
-    
-    @app.route('/status', methods=['GET'])
-    async def get_status():
-        """系统状态端点"""
-        status = monitor_manager.get_system_status()
-        return jsonify(status)

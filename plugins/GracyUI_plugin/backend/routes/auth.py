@@ -1,6 +1,6 @@
 """登录认证 API"""
 import secrets
-from quart import Blueprint, request
+from core.webserv import Blueprint, request
 
 auth_bp = Blueprint("auth", __name__, url_prefix="/api")
 
