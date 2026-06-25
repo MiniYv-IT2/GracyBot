@@ -1,7 +1,7 @@
 {
-  "api_key": "e1846e0d2a6146d0acf5175896609e9e.o5X7Sf1XeTZjShn3",
-  "model": "glm-4.7-flash",
-  "api_base": "https://open.bigmodel.cn/api/paas/v4/",
+  "api_key": "",
+  "model": "deepseek-v4-flash",
+  "api_base": "https://api.deepseek.com/v1",
   "vision_model": "qwen-vl-plus",
   "vision_api_base": "https://dashscope.aliyuncs.com/compatible-mode/v1",
   "vision_enabled": true,
@@ -10,5 +10,21 @@
   "poke_enabled": true,
   "poke_ai_reply": true,
   "poke_back": true,
-  "vision_api_key": ""
+  "vision_api_key": "",
+  "tavily_api_key": "",
+  "tts": {
+    "enabled": true,
+    "mode": "local",
+    "local": {
+      "genie_data_dir": "D:\\Python311\\Lib\\site-packages\\genie_tts\\Data\\GenieData",
+      "ref_audio": "",
+      "character": "Feibi"
+    },
+    "cloud": {
+      "url": "",
+      "api_key": "",
+      "model": "tts-1",
+      "voice": "alloy"
+    }
+  }
 }

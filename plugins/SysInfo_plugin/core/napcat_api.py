@@ -2,7 +2,7 @@ import logging
 from typing import Dict, Optional
 
 
-logger = logging.getLogger("Gracy")
+logger = logging.getLogger("Gracy.SysInfo.napcat")
 
 
 class NapcatAPI:

@@ -11,7 +11,7 @@ import logging
 import os
 from typing import Optional
 
-_logger = logging.getLogger("Gracy.QQOfficial.bind")
+_logger = logging.getLogger("Adapter.QQOfficial.bind")
 
 
 def update_runtime_master_id(openid: str, runtime=None) -> None:
@@ -75,12 +75,12 @@ class MasterBinding:
                 self._master_openid = master_id
                 self._is_bound = True
                 update_runtime_master_id(master_id, self._runtime)
-                _logger.info(f"[QQOfficial] 已恢复绑定: master_openid={master_id[:8]}****")
+                _logger.info(f"已恢复绑定: master_openid={master_id[:8]}****")
             else:
-                _logger.info("[QQOfficial] 未绑定主人，发送 /master_set 绑定")
+                _logger.info("未绑定主人，发送 /master_set 绑定")
             return self._master_openid
         except Exception as e:
-            _logger.warning(f"[QQOfficial] 读取绑定状态失败: {e}")
+            _logger.warning(f"读取绑定状态失败: {e}")
             return ""
 
     def save_state(self, master_openid: str) -> None:
@@ -93,9 +93,9 @@ class MasterBinding:
             cfg["master_id"] = master_openid
             with open(self._config_path, "w", encoding="utf-8") as f:
                 json.dump(cfg, f, ensure_ascii=False, indent=2)
-            _logger.info(f"[QQOfficial] 绑定状态已保存")
+            _logger.info(f"绑定状态已保存")
         except Exception as e:
-            _logger.warning(f"[QQOfficial] 保存绑定状态失败: {e}")
+            _logger.warning(f"保存绑定状态失败: {e}")
 
     # ── 绑定 / 解绑 ──
 
@@ -107,7 +107,7 @@ class MasterBinding:
         self._is_bound = True
         self.save_state(openid)
         update_runtime_master_id(openid, self._runtime)
-        _logger.info(f"[QQOfficial] 绑定成功: openid={openid[:8]}****")
+        _logger.info(f"绑定成功: openid={openid[:8]}****")
         return True
 
     def unbind(self, openid: str) -> bool:
@@ -121,5 +121,5 @@ class MasterBinding:
         self._is_bound = False
         self.save_state("")
         update_runtime_master_id("", self._runtime)
-        _logger.info(f"[QQOfficial] 解绑成功: old_openid={old_openid[:8]}****")
+        _logger.info(f"解绑成功: old_openid={old_openid[:8]}****")
         return True

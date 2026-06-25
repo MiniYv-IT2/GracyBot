@@ -11,7 +11,7 @@ import numpy as np
 import psutil
 import time
 
-logger = logging.getLogger("Gracy")
+logger = logging.getLogger("Gracy.SysInfo.draw")
 
 # 路径配置
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))

@@ -6,7 +6,7 @@
 import logging
 from typing import Optional
 
-_logger = logging.getLogger("Gracy.QQOfficial.message")
+_logger = logging.getLogger("Adapter.QQOfficial.message")
 
 
 class MessageMixin:
@@ -44,7 +44,7 @@ class MessageMixin:
     ) -> bool:
         token = await self.get_access_token()
         if not token:
-            _logger.error("[QQOfficial] 发送消息失败: 无有效 Token")
+            _logger.error("发送消息失败: 无有效 Token")
             return False
 
         headers = {
@@ -74,8 +74,8 @@ class MessageMixin:
                 if resp.status == 200:
                     return True
                 error_body = await resp.text()
-                _logger.error(f"[QQOfficial] 发送消息失败: {resp.status} {error_body}")
+                _logger.error(f"发送消息失败: {resp.status} {error_body}")
                 return False
         except Exception as e:
-            _logger.error(f"[QQOfficial] 发送消息异常: {e}")
+            _logger.error(f"发送消息异常: {e}")
             return False

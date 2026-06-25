@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "gracybot"
-version = "1.9.25"
+version = "1.9.57"
 description = "GracyBot - 个性化定制化QQ机器人框架"
 readme = "README.md"
 requires-python = ">=3.11"

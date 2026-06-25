@@ -12,7 +12,7 @@ from typing import Dict, Optional, List
 
 from core.gracy_adapter.identity import IdentityTag
 
-_logger = logging.getLogger("Gracy.Runtime")
+_logger = logging.getLogger("Core.Runtime")
 
 
 # ══════════════════════════════════════════════════════════
@@ -30,7 +30,7 @@ class Runtime:
 
     # ── 身份（从 style/instances/<name>/config.json 读取） ──
     instance_name: str                        # "主号" / "小号"
-    robot_id: str                             # QQ 号
+    robot_id: str                             # 机器人 ID
     master_id: str                            # 主人 QQ
     adapter_tag: IdentityTag                  # 关联适配器标签
 

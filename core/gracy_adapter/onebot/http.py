@@ -46,7 +46,7 @@ class GracyOneBot(GracyAdapter):
         self._callback_port = callback_port
         self._robot_id = robot_id
         self._on_event: Callable[[GracyEvent], None] | None = None
-        self._logger = logging.getLogger("GracyOneBot")
+        self._logger = logging.getLogger("Adapter.OneBot.http")
         self._platform_info_cache: dict | None = None
         self._platform_info_cache_time: float = 0
         self._session: aiohttp.ClientSession | None = None
@@ -172,6 +172,10 @@ class GracyOneBot(GracyAdapter):
             is_at_bot=is_at_bot,
             raw_data=data,
         )
+
+    def parse_http_request(self, body: dict) -> GracyEvent | None:
+        """实现 GracyAdapter.parse_http_request — 委托给 parse_event"""
+        return self.parse_event(body)
 
     # ── 生命周期 ──
 

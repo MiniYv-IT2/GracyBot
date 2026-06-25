@@ -12,7 +12,7 @@ from core.config_manager import config_manager
 from core.logger_manager import logger_manager
 
 # 获取日志器
-logger = logger_manager.get_logger("security")
+logger = logger_manager.get_logger("Core.Security")
 
 # 角色枚举类
 class UserRole(Enum):
@@ -28,7 +28,7 @@ class InputValidator:
     
     @staticmethod
     def is_valid_qq(user_id: str) -> bool:
-        """验证QQ号码格式"""
+        """验证用户 ID 格式"""
         return bool(re.match(r'^[1-9]\d{4,14}$', user_id))
     
     @staticmethod
@@ -93,7 +93,7 @@ class RateLimiter:
     def check_rate_limit(self, key: str) -> Tuple[bool, Optional[str]]:
         """
         检查请求是否超过频率限制
-        :param key: 用户标识（如QQ号）
+        :param key: 用户标识
         :return: (是否允许请求, 错误信息)
         """
         current_time = time.time()
@@ -170,6 +170,42 @@ class SecurityManager:
         
         # 加载配置
         self._load_config()
+
+        # 事件订阅标志（懒订阅）
+        self._subscribed = False
+
+    def _ensure_subscribed(self):
+        """确保已订阅 EventBus（懒订阅，避免加载时序问题）"""
+        if self._subscribed:
+            return
+        try:
+            from core.event import event_bus
+            event_bus.subscribe("*", self._event_filter, priority=100)
+            self._subscribed = True
+            _logger.debug("[SecurityManager] 已注册到 EventBus（优先级高）")
+        except Exception:
+            pass
+
+    async def _event_filter(self, event) -> None:
+        """EventBus 订阅者：黑名单拦截 + 审计日志（懒订阅）"""
+        self._ensure_subscribed()
+        # 黑名单拦截
+        if hasattr(event, 'sender_id') and self.is_blocked(str(event.sender_id)):
+            _logger.info(f"[EventBus] 黑名单拦截用户 {event.sender_id}")
+            event.cancel()
+            return
+        # 审计日志
+        if hasattr(event, 'chat_type'):
+            self.log_audit_event(
+                user_id=getattr(event, 'sender_id', ''),
+                action="message_received",
+                resource=event.chat_type,
+                success=True,
+                details={
+                    "raw_text": getattr(event, 'raw_text', '')[:200],
+                    "chat_type": event.chat_type,
+                }
+            )
     
     def _load_config(self):
         """从配置管理器加载安全配置"""
@@ -194,7 +230,7 @@ class SecurityManager:
         if user_id in self.user_roles:
             return self.user_roles[user_id]
         
-        # 检查是否是QQ本身（从配置中获取自己的QQ号）
+        # 检查是否机器人自身（从配置中获取自己的 ID）
         self_qq = config_manager.get('self_qq', '')
         if self_qq and str(user_id) == str(self_qq):
             return UserRole.SELF
@@ -228,7 +264,7 @@ class SecurityManager:
                 logging.DEBUG,
                 "权限校验通过",
                 context={
-                    "user_id": user_id,
+                    "sender_id": user_id,
                     "role": role.value,
                     "permission": permission
                 }
@@ -240,7 +276,7 @@ class SecurityManager:
                 logging.DEBUG,
                 "权限校验失败",
                 context={
-                    "user_id": user_id,
+                    "sender_id": user_id,
                     "role": role.value,
                     "permission": permission
                 }
@@ -318,7 +354,7 @@ class SecurityManager:
         :param details: 详细信息（兼容旧调用）
         """
         audit_entry = {
-            'user_id': user_id,
+            'sender_id': user_id,
             'role': self.get_user_role(user_id).value,
             'action': action,
             'resource': resource,
@@ -358,7 +394,7 @@ class SecurityManager:
             logging.INFO,
             "用户被添加到黑名单",
             context={
-                "user_id": user_id,
+                "sender_id": user_id,
                 "reason": reason,
                 "duration": duration
             }
@@ -375,8 +411,26 @@ class SecurityManager:
                 logger,
                 logging.INFO,
                 "用户从黑名单移除",
-                context={"user_id": user_id}
+                context={"sender_id": user_id}
             )
+
+    def is_blocked(self, user_id: str) -> bool:
+        """
+        检查用户是否在黑名单中（含超时自动清理）
+        :param user_id: 用户ID
+        :return: 是否被拦截
+        """
+        uid = str(user_id)
+        entry = self.blacklist.get(uid)
+        if entry is None:
+            return False
+        duration = entry.get('duration', 0)
+        if duration > 0:
+            elapsed = time.time() - entry.get('added_at', 0)
+            if elapsed >= duration:
+                del self.blacklist[uid]
+                return False
+        return True
     
     def generate_token(self, user_id: str) -> str:
         """
@@ -498,7 +552,7 @@ class SecurityManager:
     def check_rate_limit(self, key: str) -> Tuple[bool, Optional[str]]:
         """
         检查请求是否超过频率限制（代理到RateLimiter）
-        :param key: 用户标识（如QQ号）
+        :param key: 用户标识
         :return: (是否允许请求, 错误信息)
         """
         return self.rate_limiter.check_rate_limit(key)

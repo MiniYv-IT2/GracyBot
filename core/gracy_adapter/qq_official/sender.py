@@ -13,7 +13,7 @@ from core.gracy_adapter.message import GracyMsg, GracyText, GracyImage
 from core.gracy_adapter.qq_official.api import QQOfficialAPI
 from core.gracy_adapter.qq_official.protocol import build_send_payload
 
-_logger = logging.getLogger("Gracy.QQOfficial.sender")
+_logger = logging.getLogger("Adapter.QQOfficial.sender")
 
 
 async def send_message(
@@ -36,7 +36,7 @@ async def send_message(
     6. 清理临时文件
     """
     if not segments:
-        _logger.warning("[QQOfficial] 消息段列表为空，跳过发送")
+        _logger.warning("消息段列表为空，跳过发送")
         return False
 
     # ── 1. file_data → 临时文件 ──
@@ -50,7 +50,7 @@ async def send_message(
                 seg.file_path = tmp.name
                 _temp_files.append(tmp.name)
             except Exception as e:
-                _logger.warning(f"[QQOfficial] 保存 file_data 临时文件失败: {e}")
+                _logger.warning(f"保存 file_data 临时文件失败: {e}")
 
     # ── 2. 被动回复 msg_id ──
     msg_id = ""
@@ -88,7 +88,7 @@ async def send_message(
                 msg_type = 7
                 content = ""
             else:
-                _logger.warning("[QQOfficial] 语音上传失败，降级为文本发送")
+                _logger.warning("语音上传失败，降级为文本发送")
                 msg_type = 1
                 content = text_fallback
         elif image_url:
@@ -102,7 +102,7 @@ async def send_message(
 
         # 空内容跳过
         if not content and not media:
-            _logger.warning("[QQOfficial] 消息内容为空，跳过发送")
+            _logger.warning("消息内容为空，跳过发送")
             return False
 
         # ── 5. 发送 ──

@@ -5,7 +5,7 @@ from core.gracy_adapter.message import GracyImage, GracyText
 from .main import do_search, do_browse
 from .core.draw import draw_error
 
-logger = logging.getLogger("Gracy")
+logger = logging.getLogger("Gracy.Easysearch")
 
 ENGINE_ALIASES = {
     "/搜索": None, "搜索": None,

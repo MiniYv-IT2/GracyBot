@@ -9,20 +9,48 @@ from .database import (
     set_max_context, get_max_context
 )
 from .api_handler import call_llm_api, load_config, save_config
+from .web_search import search_web, extract_urls
 
 def is_master(user_id, master_id):
     return str(user_id) == str(master_id)
+
+
+async def handle_web_search(bot, target_id, chat_type, query, current_chat_id, user_id="", nickname=""):
+    if not query:
+        await bot(target_id, "❌ 用法：/联网 <搜索内容>\n示例：/联网 今天天气怎么样", chat_type=chat_type)
+        return
+
+    await bot(target_id, f"🔍 正在联网搜索: {query}", chat_type=chat_type)
+
+    result = search_web(query)
+    if result is None:
+        await bot(target_id, "😅 未找到相关结果", chat_type=chat_type)
+        return
+
+    if result.startswith("❌"):
+        await bot(target_id, result, chat_type=chat_type)
+        return
+
+    search_context = result + "\n请基于以上搜索结果回答用户的问题。如果搜索结果信息不足，如实告知。"
+    await add_message(current_chat_id, "system", search_context)
+
+    await handle_ai_chat(bot, target_id, chat_type, query, user_id, nickname, current_chat_id)
+
 
 async def handle_chat_help(bot, target_id, chat_type):
     help_msg = """🌟 LLM-Chat 帮助
 //+内容 - AI对话（支持上下文）
 群聊：@机器人 +内容 触发对话
+/联网 <内容> - 联网搜索后AI回答
 支持发送图片给AI识别（多模态）
 
 主人专属命令：
 /设置OpenAI API_KEY 模型 地址
 /设置视觉模型 模型 API_KEY 地址
 /视觉模型开关 开启/关闭
+/语音开关 开启/关闭
+/语音设置 模式 local/cloud
+/语音设置 角色 角色名
 /新增人设 名称 内容
 /删除人设 名称
 /查看人设列表
@@ -30,8 +58,6 @@ async def handle_chat_help(bot, target_id, chat_type):
 /清除记忆
 /设置上下文数量 数量
 /查看配置
-/戳一戳开关 开启/关闭
-/戳一戳状态
 
 英文指令：
 /persona 名称 - 切换人设
@@ -159,13 +185,65 @@ async def handle_view_config(bot, target_id, chat_type, current_chat_id):
     current_persona = await get_current_persona(current_chat_id)
     max_context = await get_max_context(current_chat_id)
     
+    tts_cfg = config.get("tts", {})
+    tts_status = "开启" if tts_cfg.get("enabled", False) else "关闭"
+    tts_mode = tts_cfg.get("mode", "local")
+    
     msg = f"""⚙️ 当前配置：
 • 模型：{config['model']}
 • 视觉模型：{config.get('vision_model', config['model'])} {'(已启用)' if config.get('vision_enabled', False) else '(已禁用)'}
+• 语音：{tts_status} (模式: {tts_mode})
 • 当前人设：{current_persona}
-• 上下文数量：{max_context}
-• 戳一戳：{'开启' if config.get('poke_enabled', True) else '关闭'}"""
+• 上下文数量：{max_context}"""
     await bot(target_id, msg, chat_type=chat_type)
+
+
+async def handle_tts_switch(bot, target_id, chat_type, raw_msg):
+    """语音开关"""
+    parts = raw_msg.split(maxsplit=1)
+    if len(parts) == 2:
+        action = parts[1].strip()
+        enabled = action in ["开启", "打开", "on", "enable", "true"]
+        config = load_config()
+        if "tts" not in config:
+            config["tts"] = {"enabled": False, "mode": "local", "local": {}, "cloud": {}}
+        config["tts"]["enabled"] = enabled
+        save_config(config)
+        status = "已开启" if enabled else "已关闭"
+        await bot(target_id, f"✅ 语音合成{status}", chat_type=chat_type)
+    else:
+        await bot(target_id, "❌ 格式：/语音开关 开启/关闭", chat_type=chat_type)
+
+
+async def handle_tts_settings(bot, target_id, chat_type, raw_msg):
+    """语音设置"""
+    parts = raw_msg.split(maxsplit=2)
+    if len(parts) < 3:
+        await bot(target_id, "❌ 格式：/语音设置 模式 local/cloud 或 /语音设置 角色 角色名", chat_type=chat_type)
+        return
+    
+    config = load_config()
+    if "tts" not in config:
+        config["tts"] = {"enabled": False, "mode": "local", "local": {}, "cloud": {}}
+    
+    action = parts[1].strip()
+    value = parts[2].strip()
+    
+    if action == "模式":
+        if value in ["local", "cloud"]:
+            config["tts"]["mode"] = value
+            save_config(config)
+            await bot(target_id, f"✅ 语音模式已切换为: {value}", chat_type=chat_type)
+        else:
+            await bot(target_id, "❌ 模式仅支持 local 或 cloud", chat_type=chat_type)
+    elif action == "角色":
+        if "local" not in config["tts"]:
+            config["tts"]["local"] = {}
+        config["tts"]["local"]["character"] = value
+        save_config(config)
+        await bot(target_id, f"✅ 语音角色已设置为: {value}", chat_type=chat_type)
+    else:
+        await bot(target_id, "❌ 格式：/语音设置 模式 local/cloud 或 /语音设置 角色 角色名", chat_type=chat_type)
 
 async def handle_ai_chat(bot, target_id, chat_type, message, user_id, nickname, current_chat_id, raw_event=None):
     config = load_config()
@@ -208,6 +286,24 @@ async def handle_ai_chat(bot, target_id, chat_type, message, user_id, nickname, 
     await add_message(current_chat_id, "user", db_user_msg)
     await add_message(current_chat_id, "assistant", reply)
 
+    # TTS 语音发送
+    tts_cfg = config.get("tts", {})
+    if tts_cfg.get("enabled", False):
+        try:
+            from .tts_client import TTSClient
+            tts_client = TTSClient(tts_cfg)
+            import tempfile
+            import os
+            tmp_path = os.path.join(tempfile.gettempdir(), f"tts_{hash(reply)}.wav")
+            audio_path = await tts_client.synthesize(reply, tmp_path)
+            if audio_path and os.path.exists(audio_path):
+                from core.gracy_adapter.message import GracyVoice
+                await bot(target_id, GracyVoice(file_path=audio_path), chat_type=chat_type)
+                return
+        except Exception as e:
+            import logging
+            logging.getLogger("Gracy.LLM_Chat.TTS").warning(f"TTS 发送失败，降级为文本: {e}")
+    
     await bot(target_id, reply, chat_type=chat_type)
 
 
@@ -245,7 +341,7 @@ async def _fetch_via_napcat(file_id: str) -> str:
     import logging
     import base64
     import os as _os
-    log = logging.getLogger("LLM_Chat")
+    log = logging.getLogger("Gracy.LLMChat")
     try:
         from core.gracy_adapter.send import gracy_call_api
         log.info(f"[图片] 通过NapCat获取本地路径: file={file_id[:30]}...")

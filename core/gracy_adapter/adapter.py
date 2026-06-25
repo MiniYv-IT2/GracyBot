@@ -17,7 +17,7 @@ from core.gracy_adapter.message import GracyMsg
 class GracyAdapter(ABC):
     """适配器抽象基类
 
-    每个平台（OneBot / Discord / Telegram ...）各有一个实现类。
+    每个平台各有一个实现类。
     每个适配器实例应包含一个 IdentityTag，由调用方在 AdapterPool.register() 时设置。
     """
 
@@ -53,7 +53,6 @@ class GracyAdapter(ABC):
         """通用 API 调用（可选，各平台按需实现）
 
         默认返回 None，表示不支持或未实现。
-        OneBot 平台调用 OneBot action，Telegram 调用 Bot API...
 
         Args:
             action: 平台特定的 API 名称
@@ -72,11 +71,23 @@ class GracyAdapter(ABC):
         {
             "friend_count": int | None,     # 好友/联系人数量，不支持返回 None
             "group_count": int | None,      # 群组/频道数量，不支持返回 None
-            "platform": str,                # 平台标识，如 "OneBot" / "Telegram" / "Discord"
+            "platform": str,                # 平台标识
             "protocol_version": str | None, # 协议端版本，不支持返回 None
         }
         """
-        ...
+
+    def parse_http_request(self, body: dict) -> Optional[GracyEvent]:
+        """将 HTTP 请求体解析为 GracyEvent（可选，仅支持 HTTP 入站的适配器实现）
+
+        默认返回 None，表示不支持 HTTP 入站。
+
+        Args:
+            body: HTTP 请求体（已解析为 dict）
+
+        Returns:
+            解析成功返回 GracyEvent，失败或不支持返回 None
+        """
+        return None
 
     @property
     def tag(self) -> Optional[IdentityTag]:
@@ -91,3 +102,13 @@ class GracyAdapter(ABC):
     def tag(self, value: IdentityTag) -> None:
         """设置适配器身份标签"""
         self._tag = value
+
+    def register_routes(self, app) -> None:
+        """注册 HTTP 路由到框架应用（可选，仅需 HTTP 入站的适配器实现）
+
+        默认空实现。
+
+        Args:
+            app: Quart 应用实例
+        """
+        pass

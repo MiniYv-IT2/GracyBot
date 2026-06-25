@@ -36,6 +36,9 @@ from core.gracy_adapter.event import GracyEvent
 from core.gracy_adapter.message import GracyMsg
 from core.gracy_adapter.onebot.cq import gracy_to_cq, cq_to_gracy
 
+# 压掉 websockets 库自身的 INFO 日志（重复输出监听信息）
+logging.getLogger("websockets").setLevel(logging.WARNING)
+
 
 class GracyOneBotWS(GracyAdapter):
     """OneBot 11 WebSocket 适配器
@@ -75,7 +78,7 @@ class GracyOneBotWS(GracyAdapter):
         self._queue_event: asyncio.Event | None = None  # 队列非空事件，唤醒 recv_loop
         self._pending_messages: list = []  # 未连接时暂存的消息，连上后补发
         self._event_executor = ThreadPoolExecutor(max_workers=4, thread_name_prefix="ws_event_")
-        self._logger = logging.getLogger("GracyOneBotWS")
+        self._logger = logging.getLogger("Adapter.OneBot.ws")
         # 平台信息缓存，避免高频 API 调用刷屏日志
         self._platform_info_cache: dict | None = None
         self._platform_info_cache_time: float = 0.0

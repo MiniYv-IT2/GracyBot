@@ -11,7 +11,7 @@ from bs4 import BeautifulSoup
 from .fetcher import fetch_url, fetch_image
 from ..config import ATTR_MAP, RARITY_MAP, SLUG_NAME_MAP, BASE_URL
 
-_logger = logging.getLogger("Gracy.异环攻略.parser")
+_logger = logging.getLogger("Gracy.NTEGuide.parser")
 
 # ── 工具 ──
 

@@ -25,7 +25,7 @@ def _get_logger():
     global _logger
     if _logger is None:
         import logging
-        _logger = logging.getLogger("Gracy.音乐点歌插件")
+        _logger = logging.getLogger("Gracy.Music")
     return _logger
 
 

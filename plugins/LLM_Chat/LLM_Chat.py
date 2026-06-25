@@ -6,10 +6,21 @@ from .core.event_handler import (
     handle_vision_switch,
     handle_add_persona, handle_delete_persona, handle_list_personas,
     handle_switch_persona, handle_clear_memory, handle_set_context,
-    handle_view_config, handle_ai_chat
+    handle_view_config, handle_ai_chat, handle_web_search,
+    handle_tts_switch, handle_tts_settings
 )
-from .core.poke_handler import set_poke_enabled, get_poke_status
+from .core.tts_client import TTSClient
 from .core.scheduler import extract_task_from_message, schedule_task, start_scheduler
+
+_tts_client = None
+
+def get_tts_client():
+    global _tts_client
+    if _tts_client is None:
+        from .core.api_handler import load_config
+        config = load_config()
+        _tts_client = TTSClient(config.get("tts", {}))
+    return _tts_client
 
 scheduler_started = False
 
@@ -32,6 +43,12 @@ async def handle_llm_chat(self_bot, bot, message, user_id, chat_type, permission
         log_func.info(f"用户{user_id}查询帮助")
         return True
     
+    if clean_msg.startswith("/联网") or clean_msg.startswith("/联网搜索"):
+        query = raw_msg.split(maxsplit=1)
+        q = query[1] if len(query) > 1 else ""
+        await handle_web_search(bot, target_id, chat_type, q, chat_id, user_id, nickname)
+        return True
+
     chat_content = ""
     if clean_msg.startswith("//"):
         chat_content = clean_msg[2:].strip()
@@ -81,19 +98,11 @@ async def handle_llm_chat(self_bot, bot, message, user_id, chat_type, permission
         elif clean_msg == "/查看配置":
             await handle_view_config(bot, target_id, chat_type, chat_id)
             return True
-        elif clean_msg.startswith("/戳一戳开关"):
-            parts = clean_msg.split(maxsplit=1)
-            if len(parts) == 2:
-                action = parts[1].strip()
-                enabled = action in ["开启", "打开", "on", "enable"]
-                result = set_poke_enabled(enabled)
-                await bot(target_id, result, chat_type=chat_type)
-            else:
-                await bot(target_id, "❌ 格式：/戳一戳开关 开启/关闭", chat_type=chat_type)
+        elif clean_msg.startswith("/语音开关"):
+            await handle_tts_switch(bot, target_id, chat_type, clean_msg)
             return True
-        elif clean_msg == "/戳一戳状态":
-            result = get_poke_status()
-            await bot(target_id, result, chat_type=chat_type)
+        elif clean_msg.startswith("/语音设置"):
+            await handle_tts_settings(bot, target_id, chat_type, clean_msg)
             return True
     
     if chat_type == "private" and clean_msg and not clean_msg.startswith("/"):

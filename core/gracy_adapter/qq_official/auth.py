@@ -9,7 +9,7 @@ from typing import Optional
 
 import aiohttp
 
-_logger = logging.getLogger("Gracy.QQOfficial.auth")
+_logger = logging.getLogger("Adapter.QQOfficial.auth")
 
 API_BASE = "https://api.sgroup.qq.com"
 SANDBOX_API_BASE = "https://sandbox.api.sgroup.qq.com"
@@ -58,13 +58,13 @@ class AuthMixin:
                     self._access_token = data.get("access_token")
                     expires_in = int(data.get("expires_in", 7200))
                     self._token_expires_at = now + expires_in
-                    _logger.info(f"[QQOfficial] Access Token 获取成功，有效期 {expires_in}s")
+                    _logger.info(f"Access Token 获取成功，有效期 {expires_in}s")
                     return self._access_token
                 error_body = await resp.text()
-                _logger.error(f"[QQOfficial] 获取 Token 失败: {resp.status} {error_body}")
+                _logger.error(f"获取 Token 失败: {resp.status} {error_body}")
                 return None
         except Exception as e:
-            _logger.error(f"[QQOfficial] 获取 Token 异常: {e}")
+            _logger.error(f"获取 Token 异常: {e}")
             return None
 
     async def refresh_token(self) -> Optional[str]:

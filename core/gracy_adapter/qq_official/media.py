@@ -8,7 +8,7 @@ import logging
 import os
 from typing import Optional
 
-_logger = logging.getLogger("Gracy.QQOfficial.media")
+_logger = logging.getLogger("Adapter.QQOfficial.media")
 
 
 class MediaMixin:
@@ -56,7 +56,7 @@ class MediaMixin:
     ) -> Optional[str]:
         token = await self.get_access_token()
         if not token:
-            _logger.error(f"[QQOfficial] 上传{log_prefix}富媒体失败: 无有效 Token")
+            _logger.error(f"上传{log_prefix}富媒体失败: 无有效 Token")
             return None
 
         headers = {"Authorization": f"QQBot {token}"}
@@ -64,21 +64,21 @@ class MediaMixin:
 
         if file_path:
             if not os.path.exists(file_path):
-                _logger.error(f"[QQOfficial] {log_prefix}文件不存在: {file_path}")
+                _logger.error(f"{log_prefix}文件不存在: {file_path}")
                 return None
             try:
                 with open(file_path, "rb") as f:
                     payload["file_data"] = base64.b64encode(f.read()).decode("utf-8")
                 headers["Content-Type"] = "application/json"
-                _logger.info(f"[QQOfficial] 正在上传{log_prefix}本地文件: {file_path}")
+                _logger.info(f"正在上传{log_prefix}本地文件: {file_path}")
             except Exception as e:
-                _logger.error(f"[QQOfficial] 读取{log_prefix}文件失败: {e}")
+                _logger.error(f"读取{log_prefix}文件失败: {e}")
                 return None
         elif url:
             payload["url"] = url
             headers["Content-Type"] = "application/json"
         else:
-            _logger.error(f"[QQOfficial] 上传失败: 未提供 file_path 或 url")
+            _logger.error(f"上传失败: 未提供 file_path 或 url")
             return None
 
         try:
@@ -86,11 +86,11 @@ class MediaMixin:
             async with session.post(endpoint, json=payload, headers=headers) as resp:
                 if resp.status == 200:
                     data = await resp.json()
-                    _logger.info(f"[QQOfficial] {log_prefix}富媒体上传成功")
+                    _logger.info(f"{log_prefix}富媒体上传成功")
                     return data.get("file_info")
                 error_body = await resp.text()
-                _logger.error(f"[QQOfficial] {log_prefix}富媒体上传失败: {resp.status} {error_body}")
+                _logger.error(f"{log_prefix}富媒体上传失败: {resp.status} {error_body}")
                 return None
         except Exception as e:
-            _logger.error(f"[QQOfficial] {log_prefix}富媒体上传异常: {e}")
+            _logger.error(f"{log_prefix}富媒体上传异常: {e}")
             return None

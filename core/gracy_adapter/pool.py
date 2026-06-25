@@ -18,7 +18,7 @@ from core.gracy_adapter.event import GracyEvent
 from core.gracy_adapter.identity import IdentityTag
 from core.gracy_adapter.message import GracyMsg
 
-_logger = logging.getLogger("Gracy.Pool")
+_logger = logging.getLogger("Adapter.Pool")
 
 
 class AdapterPool:

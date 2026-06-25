@@ -18,7 +18,7 @@ class GracySessionManager:
     def __init__(self, config_path: Optional[str] = None):
         self._sessions: Dict[str, GracySession] = {}
         self._lock = Lock()
-        self._logger = logging.getLogger("GracySession")
+        self._logger = logging.getLogger("Core.Session")
 
         self._config = self._load_config(config_path)
         self._default_expire_minutes = self._config.get("default_expire_minutes", 30)
@@ -64,28 +64,26 @@ class GracySessionManager:
         self._cleanup_thread = Thread(target=cleanup_loop, daemon=True)
         self._cleanup_thread.start()
 
-    def _generate_session_id(self, user_id: Optional[str], group_id: Optional[str]) -> str:
+    def _generate_session_id(self, sender_id: Optional[str], target_id: Optional[str]) -> str:
         """生成会话ID"""
-        if group_id:
+        if target_id:
             if self._shared_group_session:
-                # 共享会话模式：整个群共用一个会话
-                return f"group:{group_id}"
+                return f"group:{target_id}"
             else:
-                # 独立会话模式：群里每个人独立会话
-                return f"{group_id}:{user_id}" if user_id else f"group:{group_id}"
-        return f"private:{user_id}" if user_id else "private:global"
+                return f"{target_id}:{sender_id}" if sender_id else f"group:{target_id}"
+        return f"private:{sender_id}" if sender_id else "private:global"
 
     def create_session(
         self,
-        user_id: Optional[str] = None,
-        group_id: Optional[str] = None
+        sender_id: Optional[str] = None,
+        target_id: Optional[str] = None
     ) -> GracySession:
         """创建新会话"""
-        session_id = self._generate_session_id(user_id or "", group_id)
+        session_id = self._generate_session_id(sender_id or "", target_id)
         session = GracySession(
             session_id=session_id,
-            user_id=user_id,
-            group_id=group_id,
+            sender_id=sender_id,
+            target_id=target_id,
             expire_minutes=self._default_expire_minutes
         )
 
@@ -97,11 +95,11 @@ class GracySessionManager:
 
     def get_session(
         self,
-        user_id: Optional[str] = None,
-        group_id: Optional[str] = None
+        sender_id: Optional[str] = None,
+        target_id: Optional[str] = None
     ) -> Optional[GracySession]:
         """获取会话（不存在返回None）"""
-        session_id = self._generate_session_id(user_id, group_id)
+        session_id = self._generate_session_id(sender_id, target_id)
         session = self._sessions.get(session_id)
 
         if session and session.is_expired():
@@ -114,22 +112,22 @@ class GracySessionManager:
 
     def get_or_create_session(
         self,
-        user_id: Optional[str] = None,
-        group_id: Optional[str] = None
+        sender_id: Optional[str] = None,
+        target_id: Optional[str] = None
     ) -> GracySession:
         """获取或创建会话"""
-        session = self.get_session(user_id, group_id)
+        session = self.get_session(sender_id, target_id)
         if session is None:
-            session = self.create_session(user_id, group_id)
+            session = self.create_session(sender_id, target_id)
         return session
 
     def destroy_session(
         self,
-        user_id: Optional[str] = None,
-        group_id: Optional[str] = None
+        sender_id: Optional[str] = None,
+        target_id: Optional[str] = None
     ) -> bool:
         """销毁会话"""
-        session_id = self._generate_session_id(user_id, group_id)
+        session_id = self._generate_session_id(sender_id, target_id)
 
         with self._lock:
             if session_id in self._sessions:
@@ -181,24 +179,24 @@ def gracy_get_session_manager() -> GracySessionManager:
     return _manager
 
 
-def gracy_get_session(user_id: Optional[str] = None, group_id: Optional[str] = None) -> Optional[GracySession]:
+def gracy_get_session(sender_id: Optional[str] = None, target_id: Optional[str] = None) -> Optional[GracySession]:
     """获取会话"""
-    return gracy_get_session_manager().get_session(user_id, group_id)
+    return gracy_get_session_manager().get_session(sender_id, target_id)
 
 
-def gracy_get_or_create_session(user_id: Optional[str] = None, group_id: Optional[str] = None) -> GracySession:
+def gracy_get_or_create_session(sender_id: Optional[str] = None, target_id: Optional[str] = None) -> GracySession:
     """获取或创建会话"""
-    return gracy_get_session_manager().get_or_create_session(user_id, group_id)
+    return gracy_get_session_manager().get_or_create_session(sender_id, target_id)
 
 
-def gracy_create_session(user_id: Optional[str] = None, group_id: Optional[str] = None) -> GracySession:
+def gracy_create_session(sender_id: Optional[str] = None, target_id: Optional[str] = None) -> GracySession:
     """创建会话"""
-    return gracy_get_session_manager().create_session(user_id, group_id)
+    return gracy_get_session_manager().create_session(sender_id, target_id)
 
 
-def gracy_destroy_session(user_id: Optional[str] = None, group_id: Optional[str] = None) -> bool:
+def gracy_destroy_session(sender_id: Optional[str] = None, target_id: Optional[str] = None) -> bool:
     """销毁会话"""
-    return gracy_get_session_manager().destroy_session(user_id, group_id)
+    return gracy_get_session_manager().destroy_session(sender_id, target_id)
 
 
 def gracy_add_context(
@@ -255,31 +253,26 @@ def gracy_session(
     """
     def decorator(func):
         def wrapper(*args, **kwargs):
-            # 尝试从参数中获取 user_id 和 group_id
-            user_id = kwargs.get("user_id")
-            group_id = kwargs.get("group_id")
+            sender_id = kwargs.get("sender_id")
+            target_id = kwargs.get("target_id")
 
-            if not user_id and not group_id and len(args) > 0:
+            if not sender_id and not target_id and len(args) > 0:
                 first_arg = args[0]
                 if isinstance(first_arg, dict):
-                    user_id = first_arg.get("user_id")
-                    group_id = first_arg.get("group_id")
+                    sender_id = first_arg.get("sender_id")
+                    target_id = first_arg.get("target_id")
 
-            if not user_id and not group_id:
-                # 没有user_id和group_id，直接调用原函数
+            if not sender_id and not target_id:
                 return func(*args, **kwargs)
 
-            # 获取或创建会话
-            session = gracy_get_or_create_session(user_id, group_id)
+            session = gracy_get_or_create_session(sender_id, target_id)
 
             if auto_refresh:
                 manager = gracy_get_session_manager()
                 session.refresh(expire_minutes or manager._default_expire_minutes)
 
-            # 将session注入kwargs
             kwargs["session"] = session
 
-            # 调用原函数
             return func(*args, **kwargs)
 
         return wrapper

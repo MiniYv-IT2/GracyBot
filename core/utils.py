@@ -20,26 +20,18 @@ logger_manager.setup_logging(
     debug_mode=DEBUG_MODE  # 调试模式下使用结构化日志
 )
 
-# 再导入其他需要的模块
-from core.security import SanitizeLogFilter, sanitize_log
-
 # 创建日志实例
 logger = logger_manager.get_logger('Gracy')
-    
-# 为所有日志器添加脱敏过滤器
-def add_sanitize_filter_to_loggers():
-    sanitize_filter = SanitizeLogFilter()
-    # 添加到根日志器
-    root_logger = logger_manager.get_logger('')
-    root_logger.addFilter(sanitize_filter)
-    
-    # 添加到主要日志器
-    for logger_name in ['GracyBot', 'Gracy', 'GracyBot-Plugin', 'Gracy.Send', 'GracyOneBotWS', 'GracyPipeline', 'GracyEvent']:
-        named_logger = logger_manager.get_logger(logger_name)
-        named_logger.addFilter(sanitize_filter)
 
-# 添加脱敏过滤器
-add_sanitize_filter_to_loggers()
+# 可选：日志脱敏过滤器（core.security 不存在时跳过）
+try:
+    from core.security import SanitizeLogFilter
+    _sanitize_filter = SanitizeLogFilter()
+    logger_manager.get_logger('').addFilter(_sanitize_filter)
+    for _name in ['GracyBot', 'Gracy', 'GracyBot-Plugin', 'Gracy.Send', 'GracyPipeline', 'GracyEvent']:
+        logger_manager.get_logger(_name).addFilter(_sanitize_filter)
+except ImportError:
+    pass
 
 # ========== 自动回复工具（全局复用，关键词匹配逻辑） ==========
 def handle_auto_reply(msg: str) -> Optional[str]:

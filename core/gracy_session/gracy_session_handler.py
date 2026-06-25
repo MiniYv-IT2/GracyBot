@@ -16,7 +16,7 @@ Gracy会话管理命令处理器 - 手动管理会话
 import logging
 from typing import Optional
 
-logger = logging.getLogger("GracySession")
+logger = logging.getLogger("Core.Session")
 
 
 def _extract_target_user(raw_msg: str) -> Optional[str]:
@@ -173,12 +173,12 @@ def _handle_view_session(
     expire_info = "永不过期" if session.expires_at is None else f"{session.expire_minutes}分钟"
 
     group_info = f"群组: {group_id}" if group_id else "私聊"
-    session_type = "共享会话" if group_id and session.user_id is None else "独立会话"
+    session_type = "共享会话" if group_id and session.sender_id is None else "独立会话"
 
     lines = [
         f"📋 会话信息 ({group_info})",
         f"• 会话ID: {session.session_id[:20]}...",
-        f"• 用户: {session.user_id or '群共享'}",
+        f"• 用户: {session.sender_id or '群共享'}",
         f"• 类型: {session_type}",
         f"• 上下文消息数: {context_count} 条",
         f"• 过期策略: {expire_info}",

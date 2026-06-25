@@ -1,19 +1,20 @@
 """GracyBot Pipeline — 洋葱模型管道调度器
 
-Pipeline 是消息处理的核心，4 个 Stage 顺序执行：
+Pipeline 是消息处理的核心，5 个 Stage 顺序执行：
 
-    1. SecurityFilter  — 频率限制、黑名单、输入验证
-    2. BuiltinCommands — 内置命令（/帮助、/状态 等）
-    3. CommandMatcher  — TOML + @on_command 命令匹配
-    4. PluginHandler   — 权限校验、插件执行、计时、审计
-    5. ResponseSender  — 消息发送
+    1. SecurityFilter   — 安全过滤 + 日志记录
+    2. BuiltinCommands   — 内置命令（/关机、/重启、/关于 等）
+    3. CommandMatcher    — TOML + @on_command 命令匹配
+    4. PluginHandler     — 权限校验、插件执行、计时
+    5. ResponseSender    — 自动回复 + 兜底分发（LLM 等）
 
 每个 Stage 可返回 None 短路后续 Stage。
 
 用法:
-    # Runtime 创建时自动构造 Pipeline，无需手动管理
     pipeline = Pipeline()
-    pipeline.add_stage(...)
+    pipeline.add_stage(SecurityFilter())
+    pipeline.add_stage(BuiltinCommands())
+    ...
     await pipeline.process(event)
 """
 
@@ -26,7 +27,7 @@ from core.gracy_adapter.event import GracyEvent
 from core.decorators.context import PluginContext
 from core.runtime import RuntimeContext as _RuntimeContext
 
-_logger = logging.getLogger("GracyPipeline")
+_logger = logging.getLogger("Core.Pipeline")
 
 
 class Stage(ABC):
@@ -60,13 +61,11 @@ class Pipeline:
 
     async def process(self, event: GracyEvent) -> None:
         """处理事件（遍历所有 Stage，支持短路）"""
-        # 从 RuntimeContext 获取当前消息来源的 Runtime
         runtime = _RuntimeContext.get()
         if runtime is None:
             _logger.warning("[Pipeline] 无可用的 Runtime 上下文，跳过处理")
             return
 
-        # 构建 PluginContext，传入 runtime
         ctx = PluginContext(
             sender_id=str(event.sender_id),
             target_id=str(event.target_id),
@@ -80,15 +79,22 @@ class Pipeline:
 
         for stage in self._stages:
             result = await stage.process(ctx)
-            if result is None:  # 短路
+            if result is None:
                 _logger.debug(f"[Pipeline] {stage.__class__.__name__} 短路")
                 return
+
+
+# 导入所有 Stage 实现，方便外部统一导入
+from core.pipeline.security_filter import SecurityFilter
+from core.pipeline.builtin_commands import BuiltinCommands
+from core.pipeline.command_matcher import CommandMatcher
+from core.pipeline.plugin_handler import PluginHandler
+from core.pipeline.response_sender import ResponseSender
 
 
 __all__ = [
     "Stage",
     "Pipeline",
-    # 以下 stages 保留别名方便导入
     "SecurityFilter",
     "BuiltinCommands",
     "CommandMatcher",

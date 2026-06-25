@@ -46,9 +46,9 @@
 | 符号 | 类型 | 说明 |
 |---|---|---|
 | `security_manager` | SecurityManager | 全局单例 |
-| `sm.check_permission(user_id, level)` | method | 返回 `(bool, msg)` |
+| `sm.check_permission(user_id, permission)` | method | 返回 `(bool, msg)` |
 | `sm.check_master_permission(user_id)` | method | 检查主人权限 |
-| `sm.log_audit_event(user_id, action, resource, success, details)` | method | 记录审计日志 |
+| `sm.log_audit_event(user_id, action, resource, success, event_type, details)` | method | 记录审计日志 |
 | `sm.check_rate_limit(key)` | method | 检查频率限制 |
 | `sm.validate_input(data)` | method | 输入安全性校验 |
 | `sm.get_user_role(user_id)` | method | 获取用户角色 |
@@ -61,7 +61,7 @@
 
 ```python
 from core.gracy_adapter.message import (
-    GracyMsg,         # 消息段基类
+    GracyMsg,         # Union 类型别名（消息段联合类型）
     GracyText,        # GracyText(text: str)
     GracyImage,       # GracyImage(file_path=""/url=""/file_data=b"")
     GracyAt,          # GracyAt(target_id: str)
@@ -87,6 +87,7 @@ class GracyEvent:
     nickname: str           # 昵称
     is_at_bot: bool         # 是否 @机器人
     raw_data: dict          # 平台原始数据
+    source: Optional[IdentityTag]  # 消息来源适配器标签（多实例路由用）
 ```
 
 ### 发送 `send.py`

@@ -69,3 +69,9 @@ temp/
 
 # ─── 前端依赖（GracyUI dist 保留） ───
 node_modules/
+
+# ─── 无关目录 ───
+.dbg/
+_v2_models/
+dist_extract/
+gracy_framework/

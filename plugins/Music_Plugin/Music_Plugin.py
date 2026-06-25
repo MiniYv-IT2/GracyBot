@@ -21,7 +21,7 @@ from core.plugin_manager import plugin_manager
 from .core.api import search_songs, play_song, SearchItem, SongPlayData
 from .core.draw import draw_search_results, draw_song_detail
 
-_logger = logging.getLogger("Gracy.音乐点歌插件")
+_logger = logging.getLogger("Gracy.Music")
 
 # ── 会话缓存（内存级，重启即失） ──
 _last_search_keyword: str = ""

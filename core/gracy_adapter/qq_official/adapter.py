@@ -34,7 +34,7 @@ from core.gracy_adapter.qq_official.gateway import QQOfficialGateway
 from core.gracy_adapter.qq_official.bind import MasterBinding
 from core.gracy_adapter.qq_official.sender import send_message
 
-_logger = logging.getLogger("Gracy.QQOfficial")
+_logger = logging.getLogger("Adapter.QQOfficial")
 
 # ── 调试埋点 ──
 import urllib.request
@@ -102,27 +102,27 @@ class QQOfficialAdapter(GracyAdapter):
             loop = asyncio.get_event_loop()
             loop.create_task(self._async_start())
         except RuntimeError:
-            _logger.error("[QQOfficial] 启动失败: 无运行中的事件循环")
+            _logger.error("启动失败: 无运行中的事件循环")
 
     async def _async_start(self):
-        _logger.info(f"[QQOfficial] 正在启动适配器 (sandbox={self._is_sandbox})...")
+        _logger.info(f"正在启动适配器 (sandbox={self._is_sandbox})...")
         await self._gateway.start()
-        _logger.info("[QQOfficial] 适配器启动成功")
+        _logger.info("适配器启动成功")
 
     def stop(self) -> None:
-        _logger.info("[QQOfficial] 正在停止适配器...")
+        _logger.info("正在停止适配器...")
         if self._gateway:
             try:
                 loop = asyncio.get_event_loop()
                 loop.create_task(self._gateway.stop())
             except RuntimeError:
-                _logger.warning("[QQOfficial] 停止 Gateway 失败: 无运行中的事件循环")
+                _logger.warning("停止 Gateway 失败: 无运行中的事件循环")
         try:
             loop = asyncio.get_event_loop()
             loop.create_task(self._api.close())
         except RuntimeError:
             pass
-        _logger.info("[QQOfficial] 适配器已停止")
+        _logger.info("适配器已停止")
 
     # ── 主从绑定 ──
 

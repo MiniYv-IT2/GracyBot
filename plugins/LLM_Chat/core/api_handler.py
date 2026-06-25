@@ -4,7 +4,7 @@ import logging
 from openai import AsyncOpenAI
 from core.plugin_manager import plugin_manager
 
-logger = logging.getLogger("LLM_Chat")
+logger = logging.getLogger("Gracy.LLMChat")
 
 
 def load_config():

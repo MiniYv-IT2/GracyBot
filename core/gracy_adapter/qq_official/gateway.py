@@ -19,7 +19,7 @@ from core.gracy_adapter.identity import IdentityTag
 from core.gracy_adapter.qq_official.api import QQOfficialAPI
 from core.gracy_adapter.qq_official.protocol import parse_event
 
-_logger = logging.getLogger("Gracy.QQOfficial.gateway")
+_logger = logging.getLogger("Adapter.QQOfficial.gateway")
 
 # ── 调试埋点 ──
 import urllib.request
@@ -58,13 +58,13 @@ class QQOfficialGateway:
                 await self._connect()
             except Exception as e:
                 if self._running:
-                    _logger.error(f"[QQOfficial] 连接异常: {e}")
+                    _logger.error(f"连接异常: {e}")
                     await asyncio.sleep(self._reconnect_delay)
                     self._reconnect_delay = min(self._reconnect_delay * 2, 60)
             else:
                 self._reconnect_delay = 1
 
-        _logger.info("[QQOfficial] Gateway 连接已停止")
+        _logger.info("Gateway 连接已停止")
 
     async def stop(self):
         self._running = False
@@ -84,23 +84,23 @@ class QQOfficialGateway:
         # 从 API 获取 Gateway 地址
         ws_url = await self._api.get_gateway_url()
         if not ws_url:
-            _logger.error("[QQOfficial] 无法获取 Gateway 地址")
+            _logger.error("无法获取 Gateway 地址")
             raise ConnectionError("获取 Gateway 地址失败")
 
         # 获取 Token
         token = await self._api.get_access_token()
         if not token:
-            _logger.error("[QQOfficial] 无有效 Token")
+            _logger.error("无有效 Token")
             raise ConnectionError("无有效 Token")
 
-        _logger.info(f"[QQOfficial] 正在连接: {ws_url}")
+        _logger.info(f"正在连接: {ws_url}")
         async with self._session.ws_connect(
             ws_url,
             headers={"Authorization": f"QQBot {token}"},
             heartbeat=60,
         ) as ws:
             self._ws = ws
-            _logger.info("[QQOfficial] WebSocket 连接成功")
+            _logger.info("WebSocket 连接成功")
 
             # 等待 Hello 并开始心跳
             hello_data = await ws.receive_json()
@@ -118,11 +118,11 @@ class QQOfficialGateway:
                         _dbg("ws_json", op=data.get("op"), t=data.get("t"))
                         await self._handle_message(data)
                     except Exception as e:
-                        _logger.error(f"[QQOfficial] 处理消息异常: {e}")
+                        _logger.error(f"处理消息异常: {e}")
                 elif msg.type == aiohttp.WSMsgType.CLOSED:
                     break
 
-            _logger.warning(f"[QQOfficial] WebSocket 连接关闭: {ws.close_code}")
+            _logger.warning(f"WebSocket 连接关闭: {ws.close_code}")
 
     async def _send_identify(self, token: str):
         """发送 Identify 鉴权包"""
@@ -135,7 +135,7 @@ class QQOfficialGateway:
             },
         }
         await self._ws.send_json(payload)
-        _logger.info("[QQOfficial] 已发送 Identify 鉴权")
+        _logger.info("已发送 Identify 鉴权")
 
     async def _handle_message(self, data: dict):
         """处理接收到的 WebSocket 消息"""
@@ -152,21 +152,21 @@ class QQOfficialGateway:
                 if event:
                     self._on_event(event)
             else:
-                _logger.debug(f"[QQOfficial] 未解析的事件: {event_type}")
+                _logger.debug(f"未解析的事件: {event_type}")
         elif op == 7:  # Reconnect
-            _logger.warning("[QQOfficial] 收到重连指令")
+            _logger.warning("收到重连指令")
             raise ConnectionError("收到重连指令")
         elif op == 9:  # Invalid Session
-            _logger.error("[QQOfficial] 会话无效，需要重新鉴权")
+            _logger.error("会话无效，需要重新鉴权")
             raise ConnectionError("会话无效")
         else:
-            _logger.debug(f"[QQOfficial] 未知 op 类型: {op}")
+            _logger.debug(f"未知 op 类型: {op}")
 
     def _handle_hello(self, data: dict):
         """处理 Hello 消息，启动心跳"""
         d = data.get("d", {})
         self._heartbeat_interval = d.get("heartbeat_interval", 41250) / 1000.0
-        _logger.info(f"[QQOfficial] 心跳间隔: {self._heartbeat_interval}s")
+        _logger.info(f"心跳间隔: {self._heartbeat_interval}s")
 
         if self._heartbeat_task:
             self._heartbeat_task.cancel()
@@ -180,9 +180,9 @@ class QQOfficialGateway:
 
                 if self._ws and not self._ws.closed:
                     await self._ws.send_json({"op": 1, "d": None})
-                    _logger.debug("[QQOfficial] 心跳已发送")
+                    _logger.debug("心跳已发送")
             except asyncio.CancelledError:
                 break
             except Exception as e:
-                _logger.error(f"[QQOfficial] 心跳异常: {e}")
+                _logger.error(f"心跳异常: {e}")
                 break

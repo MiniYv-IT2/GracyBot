@@ -21,7 +21,7 @@ from typing import Callable, Dict, List, Optional
 
 from core.gracy_adapter.event import GracyEvent
 
-_logger = logging.getLogger("GracyEvent")
+_logger = logging.getLogger("Core.Event")
 
 
 class EventBus:
@@ -38,12 +38,22 @@ class EventBus:
 
     # ── 订阅管理 ──
 
-    def subscribe(self, event_type: str, handler: Callable) -> None:
-        """订阅事件类型"""
+    def subscribe(self, event_type: str, handler: Callable, priority: int = 0) -> None:
+        """订阅事件类型
+
+        Args:
+            event_type: 事件类型（"private"/"group"/"*"）
+            handler: 处理函数
+            priority: 优先级，越高越先执行（安全过滤器等高优先级用 100）
+        """
         if event_type not in self._subscribers:
             self._subscribers[event_type] = []
-        self._subscribers[event_type].append(handler)
-        _logger.debug(f"[EventBus] 订阅 {event_type}: {handler.__name__}")
+        handlers = self._subscribers[event_type]
+        if priority > 0:
+            handlers.insert(0, handler)
+        else:
+            handlers.append(handler)
+        _logger.debug(f"[EventBus] 订阅 {event_type}: {handler.__name__} (priority={priority})")
 
     def unsubscribe(self, event_type: str, handler: Callable) -> None:
         """取消订阅"""
@@ -58,15 +68,22 @@ class EventBus:
         """发布事件（异步派发，不阻塞调用方）
 
         1. 通知所有 subscribe 的监听器（兼容旧接口）
-        2. 通过 RuntimeRegistry 查找来源 Runtime，路由到对应 Pipeline
+        2. 若未被订阅者取消，通过 RuntimeRegistry 路由到对应 Pipeline
         """
         event_type = event.chat_type  # "private" | "group"
 
-        # 路径 A：订阅者通知
+        # 路径 A：订阅者通知（安全检查等高优先级订阅者可调用 event.cancel() 阻断）
         for handler in self._subscribers.get(event_type, []):
+            if event.cancelled:
+                break
             asyncio.create_task(self._safe_call(handler, event))
-        for handler in self._subscribers.get("*", []):
-            asyncio.create_task(self._safe_call(handler, event))
+        if not event.cancelled:
+            for handler in self._subscribers.get("*", []):
+                asyncio.create_task(self._safe_call(handler, event))
+
+        # 已取消 → 不入 Pipeline
+        if event.cancelled:
+            return
 
         # 路径 B：通过 RuntimeRegistry 路由到对应 Runtime 的 Pipeline
         from core.runtime import RuntimeRegistry, RuntimeContext

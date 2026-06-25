@@ -11,10 +11,8 @@ from core.config_manager import config_manager, ConfigItem
 # ═══════════════ 框架默认值 ═══════════════
 
 DEFAULT_CONFIG = {
-    "master_id": "",
-    "callback_port": 3002,
-    "connection_mode": "http",
-    "bot_version": "v1.9.54",
+    "bot_version": "v1.9.57",
+
     "log_encoding": "utf-8",
     "log_level": "INFO",
     "debug_mode": False,
@@ -27,7 +25,7 @@ DEFAULT_CONFIG = {
         "晚上好": "晚上好～ 记得早点休息，不要熬夜呀！",
         "吃了吗": "哈哈，已经吃过啦～ 你也要按时吃饭呀！",
         "天气怎么样": "抱歉呀，我暂时没法查询天气，记得关注天气预报哦～",
-        "你是谁": "我是 GracyBot，一款基于 Napcat 的 QQ 机器人，很高兴认识你！",
+        "你是谁": "我是 GracyBot，很高兴认识你！",
         "加油": "谢谢鼓励～ 你也超棒的，一起加油呀！"
     }
 }
@@ -36,22 +34,8 @@ DEFAULT_CONFIG = {
 # ═══════════════ 框架级配置（存储在 config.json）═══════════════
 
 config_manager.register_config(ConfigItem(
-    key="connection_mode",
-    default="http",
-    description="连接模式: http(http_reverse), ws_forward, ws_reverse",
-    validate_func=lambda x: x in ["http", "http_reverse", "ws_forward", "ws_reverse"]
-))
-
-config_manager.register_config(ConfigItem(
-    key="callback_port",
-    default=3002,
-    description="回调服务端口",
-    validate_func=lambda x: isinstance(x, int) and 1024 <= x <= 65535
-))
-
-config_manager.register_config(ConfigItem(
     key="bot_version",
-    default="v1.9.4",
+    default="v1.9.57",
     description="机器人版本"
 ))
 
@@ -62,26 +46,15 @@ config_manager.register_config(ConfigItem(
 ))
 
 config_manager.register_config(ConfigItem(
-    key="auto_replies",
-    default={
-        "你好": "哈喽～ 我是 GracyBot，有什么可以帮你呀？",
-        "在吗": "在呢在呢～ 随时在线为你服务！",
-        "谢谢": "不客气呀～ 能帮到你我也很开心！",
-        "再见": "拜拜～ 下次见啦，祝你生活愉快！",
-        "早上好": "早上好呀～ 新的一天也要元气满满哦！",
-        "晚上好": "晚上好～ 记得早点休息，不要熬夜呀！",
-        "吃了吗": "哈哈，已经吃过啦～ 你也要按时吃饭呀！",
-        "天气怎么样": "抱歉呀，我暂时没法查询天气，记得关注天气预报哦～",
-        "你是谁": "我是 GracyBot，一款基于 Napcat 的 QQ 机器人，很高兴认识你！",
-        "加油": "谢谢鼓励～ 你也超棒的，一起加油呀！"
-    },
-    description="自动回复配置"
-))
-
-config_manager.register_config(ConfigItem(
     key="debug_mode",
     default=False,
     description="调试模式"
+))
+
+config_manager.register_config(ConfigItem(
+    key="auto_replies",
+    default={},
+    description="关键词自动回复配置"
 ))
 
 config_manager.register_config(ConfigItem(
@@ -101,13 +74,11 @@ config_manager.load()
 
 # ═══════════════ 模块常量（框架级，不包含实例级字段） ═══════════════
 
-CALLBACK_PORT = config_manager.get("callback_port")
 BOT_VERSION = config_manager.get("bot_version")
 LOG_ENCODING = config_manager.get("log_encoding")
 AUTO_REPLIES = config_manager.get("auto_replies")
 DEBUG_MODE = config_manager.get("debug_mode")
 LOG_LEVEL = config_manager.get("log_level")
-CONNECTION_MODE = config_manager.get("connection_mode")
 
 # robot_id / master_id 已迁移到各实例配置文件 + RuntimeRegistry
 # 旧代码通过 get_current_robot_id() / get_current_master_id() 从 RuntimeContext 获取

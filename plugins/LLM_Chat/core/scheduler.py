@@ -100,7 +100,7 @@ async def schedule_task(chat_id, task_time, task_content, persona=None):
 
 def check_and_execute_tasks():
     import logging
-    logger = logging.getLogger('GracyBot-Scheduler')
+    logger = logging.getLogger('Gracy.LLMChat.scheduler')
     logger.debug("⏰ 定时任务检查器已启动")
     
     executed_tasks = set()

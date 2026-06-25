@@ -71,12 +71,12 @@ def cmd_list():
 
 @instance_cli.command("add")
 def cmd_add(
-    name: str = typer.Argument(..., help="实例目录名，如 onebot_main"),
-    robot_id: str = typer.Option("", "--robot", "-r", help="机器人 ID（如 QQ号/Telegram ID）"),
-    master_id: str = typer.Option("", "--master", "-m", help="主人 ID（如 QQ号/Telegram ID）"),
-    platform: str = typer.Option("onebot", "--platform", "-p", help="平台类型"),
+    name: str = typer.Argument(..., help="实例目录名，如 main_bot"),
+    robot_id: str = typer.Option("", "--robot", "-r", help="机器人 ID"),
+    master_id: str = typer.Option("", "--master", "-m", help="主人/管理员 ID"),
+    platform: str = typer.Option("", "--platform", "-p", help="平台类型（如 onebot / qq_official）"),
     bot_name: str = typer.Option("", "--bot-name", "-b", help="Bot 显示名称"),
-    conn_type: str = typer.Option("http", "--type", "-t", help="连接类型: http/ws_forward/ws_reverse"),
+    conn_type: str = typer.Option("http", "--type", "-t", help="连接类型: http/ws"),
 ):
     """创建新实例（交互式或静默）"""
     inst_dir = _instances_dir() / name
@@ -96,12 +96,9 @@ def cmd_add(
     host = ""
     port = 0
     access_token = ""
-    callback_port = 3002
 
     if conn_type == "http":
         http_url = typer.prompt("  HTTP API 地址", default="http://127.0.0.1:3000")
-        cb = typer.prompt("  回调端口", default="3002")
-        callback_port = int(cb) if cb.isdigit() else 3002
     else:
         host = typer.prompt("  WS 地址", default="127.0.0.1")
         p = typer.prompt("  WS 端口", default="3001")
@@ -120,7 +117,6 @@ def cmd_add(
     }
     if conn_type == "http":
         cfg["http_url"] = http_url
-        cfg["callback_port"] = callback_port
     else:
         cfg["host"] = host
         cfg["port"] = port

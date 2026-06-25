@@ -70,7 +70,7 @@ class ConfigManager:
             cls._instance._initialized = False
             cls._instance._config_items = {}
             cls._instance._file_config = {}
-            cls._instance._logger = logging.getLogger("GracyBot-Config")
+            cls._instance._logger = logging.getLogger("Tool.Config")
         return cls._instance
     
     def register_config(self, config_item: ConfigItem) -> None:
@@ -145,7 +145,7 @@ class ConfigManager:
     def load_from(self, filepath: str) -> bool:
         """从指定路径加载配置文件，将值合并到已注册的配置项中
 
-        用于适配器独立配置文件（如 onebot_config.json），
+        用于适配器独立配置文件，
         只更新已注册的 ConfigItem，不会自动注册新项。
 
         Args:
@@ -302,7 +302,7 @@ class ConfigManager:
                     if key in self._file_config:
                         item.value = self._file_config[key]
                 self._logger.warning(f"⚠️ 首次运行！已创建默认配置文件: {CONFIG_FILE_PATH}")
-                self._logger.warning("💡 请编辑 config.json 填写 robot_id 和 master_id（你的QQ号）后重新启动")
+                self._logger.warning("💡 请编辑 config.json 填写 robot_id 和 master_id 后重新启动")
             except Exception as e:
                 self._logger.error(f"❌ 创建默认配置文件失败: {str(e)}", exc_info=True)
             return

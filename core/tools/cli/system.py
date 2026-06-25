@@ -255,23 +255,28 @@ def run_bot_process(root: Path, debug: bool = False, no_webui: bool = False):
 def stop_bot_process():
     """停止运行中的 GracyBot（通过进程名 + 命令行匹配）"""
     plat = get_platform_label()
+    current_pid = os.getpid()
 
     try:
         if plat == "windows":
-            # 按端口查进程杀掉（hypercorn / WS 端口）
+            # 用 PowerShell Get-CimInstance 按命令行匹配 bot.py 进程，跳过自己
             killed = False
-            for port_try in [3001, 3002, 5090]:
-                r = subprocess.run(
-                    f'netstat -ano | findstr ":{port_try} "',
-                    capture_output=True, text=True, shell=True, timeout=5
-                )
-                for line in r.stdout.strip().split("\n"):
-                    parts = line.strip().split()
-                    if len(parts) >= 5 and parts[1].endswith(f":{port_try}"):
-                        pid = parts[-1]
-                        if pid.isdigit():
-                            subprocess.run(f'taskkill /f /pid {pid} 2>nul', shell=True, timeout=5)
-                            killed = True
+            ps_script = (
+                'Get-CimInstance -Query "SELECT ProcessId,CommandLine FROM Win32_Process '
+                "WHERE Name='python.exe'\" | "
+                f"Where-Object {{ $_.CommandLine -match 'bot\\.py' -and $_.ProcessId -ne {current_pid} }} | "
+                'ForEach-Object { $_.ProcessId }'
+            )
+            r = subprocess.run(
+                ['powershell', '-NoProfile', '-Command', ps_script],
+                capture_output=True, text=True, timeout=10
+            )
+            for pid_str in r.stdout.strip().split("\n"):
+                pid_str = pid_str.strip()
+                if not pid_str.isdigit():
+                    continue
+                subprocess.run(f'taskkill /f /pid {pid_str} 2>nul', shell=True, timeout=5)
+                killed = True
             if killed:
                 print("  ✅ 已停止")
             else:

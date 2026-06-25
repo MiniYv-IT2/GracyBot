@@ -18,10 +18,12 @@ def create_adapter(config: dict) -> GracyAdapter:
     if not config.get("app_secret"):
         raise ValueError("QQ 官方适配器缺少必填字段: app_secret")
 
-    return QQOfficialAdapter(
+    adapter = QQOfficialAdapter(
         app_id=config["app_id"],
         app_secret=config["app_secret"],
         is_sandbox=config.get("is_sandbox", False),
-        robot_id=config.get("robot_id", ""),
+        robot_id=config["app_id"],
         config_path=config.get("_config_path", ""),
     )
+    adapter.conn_type_display = "WebSocket Gateway"
+    return adapter

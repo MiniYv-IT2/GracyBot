@@ -8,13 +8,13 @@ class GracySession:
     def __init__(
         self,
         session_id: str,
-        user_id: Optional[str] = None,
-        group_id: Optional[str] = None,
+        sender_id: Optional[str] = None,
+        target_id: Optional[str] = None,
         expire_minutes: int = 0
     ):
         self.session_id = session_id
-        self.user_id = user_id
-        self.group_id = group_id
+        self.sender_id = sender_id
+        self.target_id = target_id
         self.context: List[Dict[str, str]] = []
         self.state: Dict[str, Any] = {}
         self.created_at = time.time()
@@ -70,8 +70,8 @@ class GracySession:
         """转换为字典（用于持久化）"""
         return {
             "session_id": self.session_id,
-            "user_id": self.user_id,
-            "group_id": self.group_id,
+            "sender_id": self.sender_id,
+            "target_id": self.target_id,
             "context": list(self.context),
             "state": dict(self.state),
             "created_at": self.created_at,
@@ -84,8 +84,8 @@ class GracySession:
         """从字典恢复会话"""
         session = cls(
             session_id=data["session_id"],
-            user_id=data.get("user_id"),
-            group_id=data.get("group_id"),
+            sender_id=data.get("sender_id"),
+            target_id=data.get("target_id"),
             expire_minutes=data.get("expire_minutes", 0)
         )
         session.context = list(data.get("context", []))

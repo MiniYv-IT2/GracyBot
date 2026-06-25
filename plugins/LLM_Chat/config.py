@@ -10,10 +10,11 @@ DEFAULT_CONFIG: Dict[str, Any] = {
     "vision_model": "qwen-vl-plus",
     "vision_api_base": "https://dashscope.aliyuncs.com/compatible-mode/v1",
     "vision_enabled": True,
-    "max_context": 50,
+    "max_context": 100000,
     "default_persona": "",
     "poke_enabled": True,
     "poke_ai_reply": True,
     "poke_back": True,
     "vision_api_key": "",
+    "tavily_api_key": "",
 }

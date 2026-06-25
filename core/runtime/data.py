@@ -9,7 +9,7 @@ from typing import Dict, Any
 
 from .runtime import Runtime
 
-_logger = logging.getLogger("Gracy.Data")
+_logger = logging.getLogger("Core.Data")
 
 
 def get_global_path(plugin_name: str, *segments: str) -> str:

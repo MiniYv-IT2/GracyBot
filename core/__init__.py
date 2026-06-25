@@ -9,20 +9,10 @@ def _get_plugin_manager():
     from .plugin_manager import plugin_manager
     return plugin_manager
 
-def _get_security_manager():
-    """延迟导入安全管理器，避免循环依赖"""
-    from .security_manager import security_manager
-    return security_manager
-
 def _get_config_manager():
     """延迟导入配置管理器，避免循环依赖"""
     from .config_manager import config_manager
     return config_manager
-
-def _get_monitor_manager():
-    """延迟导入监控管理器，避免循环依赖"""
-    from .monitor import monitor_manager
-    return monitor_manager
 
 def _get_logger_manager():
     """延迟导入日志管理器，避免循环依赖"""
@@ -54,9 +44,7 @@ class Core:
     
     # 延迟加载的核心管理器
     plugin_manager = LazyLoader(_get_plugin_manager)
-    security_manager = LazyLoader(_get_security_manager)
     config_manager = LazyLoader(_get_config_manager)
-    monitor_manager = LazyLoader(_get_monitor_manager)
     logger_manager = LazyLoader(_get_logger_manager)
     runtime_registry = LazyLoader(_get_runtime_registry)
 
@@ -68,17 +56,9 @@ def get_plugin_manager():
     """获取插件管理器实例"""
     return core.plugin_manager
 
-def get_security_manager():
-    """获取安全管理器实例"""
-    return core.security_manager
-
 def get_config_manager():
     """获取配置管理器实例"""
     return core.config_manager
-
-def get_monitor_manager():
-    """获取监控管理器实例"""
-    return core.monitor_manager
 
 def get_logger_manager():
     """获取日志管理器实例"""
@@ -90,15 +70,9 @@ def get_runtime_registry():
 
 # 导出主要工具函数和常量（容错导入，避免缺依赖时崩整个包）
 try:
-    from core.handler import callback_base
-except ImportError:
-    callback_base = None
-
-try:
-    from core.utils import logger, sanitize_log
+    from core.utils import logger
 except ImportError:
     logger = None
-    sanitize_log = None
 
 # 版本信息（懒加载，避免导入时触发配置系统）
 def _get_version():
@@ -109,16 +83,11 @@ __version__ = _get_version()
 __all__ = [
     # 核心管理器访问函数
     "get_plugin_manager",
-    "get_security_manager",
     "get_config_manager",
-    "get_monitor_manager",
     "get_logger_manager",
     "get_runtime_registry",
     # 核心组件实例（延迟加载）
     "core",
-    # 主要函数
-    "callback_base",
-    "sanitize_log",
     # 日志对象
     "logger",
     # 版本信息

@@ -62,12 +62,12 @@ def check_permission(user_id: str, require_master: bool = False) -> Tuple[bool, 
             return False, "❌ 权限不足，无法使用该功能！"
     except Exception as e:
         # 异常情况下使用传统校验作为降级方案
-        logging.getLogger("GracyBot-HTTP").error(f"[权限校验] 安全管理器异常，使用降级方案: {str(e)}")
+        logging.getLogger("Core.Security").error(f"[权限校验] 安全管理器异常，使用降级方案: {str(e)}")
         
         # 主人权限校验（降级方案）
         if require_master:
             if user_id != str(MASTER_ID):
-                logging.getLogger("GracyBot-HTTP").warning(f"[安全校验] 用户{user_id}尝试访问主人专属功能，权限拒绝")
+                logging.getLogger("Core.Security").warning(f"[安全校验] 用户{user_id}尝试访问主人专属功能，权限拒绝")
                 return False, "❌ 该功能仅主人可使用，权限不足！"
             return True, "✅ 权限校验通过（主人身份）"
         
@@ -94,17 +94,17 @@ def filter_dangerous_commands(cmd: str) -> Tuple[bool, Optional[str]]:
         return True, None
     except Exception as e:
         # 异常情况下使用传统过滤作为降级方案
-        logging.getLogger("GracyBot-HTTP").error(f"[命令过滤] 安全管理器异常，使用降级方案: {str(e)}")
+        logging.getLogger("Core.Security").error(f"[命令过滤] 安全管理器异常，使用降级方案: {str(e)}")
         
         # 正则匹配危险命令（忽略大小写）
         for dangerous_pattern in DANGEROUS_COMMANDS:
             if re.search(dangerous_pattern, cmd, re.IGNORECASE):
-                logging.getLogger("GracyBot-HTTP").error(f"[安全过滤] 拦截危险命令：{cmd[:50]}...")
+                logging.getLogger("Core.Security").error(f"[安全过滤] 拦截危险命令：{cmd[:50]}...")
                 return False, f"⚠️  检测到危险命令！为保护系统安全，禁止执行「{dangerous_pattern}」相关操作"
         
         # 敏感字符过滤（防命令注入）
         if re.search(SENSITIVE_CHARS, cmd):
-            logging.getLogger("GracyBot-HTTP").warning(f"[安全过滤] 拦截含敏感字符的命令：{cmd[:50]}...")
+            logging.getLogger("Core.Security").warning(f"[安全过滤] 拦截含敏感字符的命令：{cmd[:50]}...")
             return False, "⚠️  命令中包含敏感字符，可能存在安全风险，禁止执行！"
         
         return True, None
@@ -122,7 +122,7 @@ def sanitize_input(content: str, max_length: int = 1000) -> str:
         return InputValidator.sanitize_input(content, max_length)
     except Exception as e:
         # 异常情况下使用传统净化作为降级方案
-        logging.getLogger("GracyBot-HTTP").error(f"[输入净化] 验证器异常，使用降级方案: {str(e)}")
+        logging.getLogger("Core.Security").error(f"[输入净化] 验证器异常，使用降级方案: {str(e)}")
         
         # HTML特殊字符转义（防XSS）
         sanitize_map = {
@@ -164,7 +164,7 @@ def sanitize_log(content: str) -> str:
         return f"用户****{num[-4:]}"
 
     # 【优先匹配】带标签的ID格式（必须在裸数字之前，避免被裸数字规则先匹配）
-    # 0. @QQ号脱敏（格式：[@123456] → [@用户****456]）
+    # 0. @用户 ID 脱敏（格式：[@123456] → [@用户****456]）
     content = re.sub(r'\[@(\d{1,})\]', lambda m: f'[@用户****{m.group(1)[-4:]}]', content)
     content = re.sub(r'@(\d{5,15})(?!\w)', lambda m: f'@用户****{m.group(1)[-4:]}', content)
     # 1. 群组ID/群ID/群号脱敏
@@ -242,5 +242,5 @@ class SanitizeLogFilter(logging.Filter):
                 record.msg = re.sub(pattern, replace_with_groups, record.msg)
         except Exception as e:
             # 脱敏失败不影响日志输出，仅记录异常（使用通用日志器避免循环）
-            logging.getLogger("GracyBot-HTTP").error(f"[日志脱敏过滤器] 处理异常：{str(e)}")
+            logging.getLogger("Core.Security").error(f"[日志脱敏过滤器] 处理异常：{str(e)}")
         return True

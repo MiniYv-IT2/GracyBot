@@ -12,7 +12,7 @@ import httpx
 
 from ..config import CACHE_DIR, CACHE_EXPIRE, BASE_URL
 
-_logger = logging.getLogger("Gracy.异环攻略.fetcher")
+_logger = logging.getLogger("Gracy.NTEGuide.fetcher")
 
 # 缓存键前缀
 _PREFIX = "nte_"

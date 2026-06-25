@@ -31,6 +31,13 @@ class GracyEvent:
     raw_data: dict = field(default_factory=dict)  # 平台原始数据（透传给需要深入访问的插件）
     source: Optional[IdentityTag] = None           # 消息来源适配器标签（多适配器时区分）
 
+    # ── 事件控制 ──
+    cancelled: bool = False                        # 是否被拦截（EventBus 订阅者可设置）
+
+    def cancel(self):
+        """拦截此事件，阻止进入 Pipeline"""
+        self.cancelled = True
+
     @property
     def plain_text(self) -> str:
         """提取所有文本段拼接为纯文本"""

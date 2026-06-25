@@ -3,7 +3,7 @@ import sys
 import subprocess
 import logging
 
-logger = logging.getLogger("Gracy")
+logger = logging.getLogger("Gracy.Screenshot")
 PLUGIN_DIR = os.path.dirname(os.path.abspath(__file__))
 STATE_FILE = os.path.join(PLUGIN_DIR, ".dep_checked")
 

@@ -30,7 +30,7 @@ from .security import (
     check_cooldown_decorator,
 )
 
-_logger = logging.getLogger("Gracy.Decorators")
+_logger = logging.getLogger("Core.Decorators")
 
 
 def plugin_handler(func: Callable) -> Callable:

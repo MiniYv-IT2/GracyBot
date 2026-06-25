@@ -1,4 +1,4 @@
-"""GracyBot 插件管理器 — 负责扫描、加载、注册、匹配、重载"""
+﻿"""GracyBot 插件管理器 — 负责扫描、加载、注册、匹配、重载"""
 
 import os
 import json

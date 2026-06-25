@@ -34,7 +34,7 @@ async def init_db():
             CREATE TABLE IF NOT EXISTS settings (
                 chat_id TEXT PRIMARY KEY,
                 current_persona TEXT DEFAULT '默认人设',
-                max_context INTEGER DEFAULT 50
+                max_context INTEGER DEFAULT 100000
             )
         """)
         

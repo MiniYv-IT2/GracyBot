@@ -30,7 +30,7 @@ from .core.draw import (
     draw_leveling_materials, draw_redeem_codes, draw_search_results,
 )
 
-_logger = logging.getLogger("Gracy.异环攻略")
+_logger = logging.getLogger("Gracy.NTEGuide")
 
 os.makedirs(CACHE_DIR, exist_ok=True)
 os.makedirs(os.path.join(DATA_DIR, "background"), exist_ok=True)

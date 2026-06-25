@@ -23,7 +23,7 @@ from core.config import (
 from core.gracy_adapter.send import gracy_send_msg
 from core.gracy_adapter.message import GracyImage, GracyText
 from core.security import sanitize_log
-logger = logging.getLogger("Gracy")
+logger = logging.getLogger("Gracy.SysInfo")
 
 CACHE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "cache")
 
@@ -205,26 +205,27 @@ def _get_network_info() -> Dict:
         net_io = psutil.net_io_counters(pernic=True)
         
         # 检测网络类型和获取流量
-        system = platform.system()
         for iface, stats in net_io.items():
             # 跳过回环接口
             if iface.lower() in ['lo', 'loopback']:
                 continue
+            # 跳过无流量的接口
+            if stats.bytes_recv == 0 and stats.bytes_sent == 0:
+                continue
             
-            # 检测网络类型
-            if network_info["type"] == "未知":
-                if any(x in iface.lower() for x in ['eth', 'en', '以太网']):
-                    network_info["type"] = "以太网"
-                elif any(x in iface.lower() for x in ['wlan', 'wi-fi', 'wifi', '无线']):
-                    network_info["type"] = "WiFi"
+            # 取第一个有流量的接口，类型和流量同源
+            if any(x in iface.lower() for x in ['eth', 'en', '以太网']):
+                network_info["type"] = "以太网"
+            elif any(x in iface.lower() for x in ['wlan', 'wi-fi', 'wifi', '无线']):
+                network_info["type"] = "WiFi"
+            else:
+                network_info["type"] = "网络连接"
             
-            # 获取主要网络接口的流量（第一个非回环接口）
-            if network_info["upload"] == 0 and network_info["download"] == 0:
-                network_info["download"] = stats.bytes_recv // (1024 * 1024)
-                network_info["upload"] = stats.bytes_sent // (1024 * 1024)
-                break
+            network_info["download"] = stats.bytes_recv // (1024 * 1024)
+            network_info["upload"] = stats.bytes_sent // (1024 * 1024)
+            break
         
-        # 如果没有检测到网络类型，设置为通用
+        # 遍历完都没找到有流量的非回环接口
         if network_info["type"] == "未知":
             network_info["type"] = "网络连接"
             
@@ -326,8 +327,8 @@ async def _get_robot_info() -> Dict:
         robot_info["python_package_count"] = cached_pkgs
     else:
         try:
-            import pkg_resources
-            cnt = len([p for p in pkg_resources.working_set])
+            from importlib.metadata import distributions
+            cnt = len(list(distributions()))
             robot_info["python_package_count"] = cnt
             _cache_set("package_count", cnt)
         except Exception:

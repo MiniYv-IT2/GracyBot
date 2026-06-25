@@ -5,7 +5,6 @@
 - 入站事件: GracyEvent
 - 适配器抽象: GracyAdapter
 - 统一入口: GracyBot
-- OneBot 平台: GracyOneBot (HTTP), GracyOneBotWS (WebSocket)
 """
 
 from core.gracy_adapter.message import (
@@ -22,9 +21,6 @@ from core.gracy_adapter.message import (
 from core.gracy_adapter.event import GracyEvent
 from core.gracy_adapter.adapter import GracyAdapter
 from core.gracy_adapter.gracy_bot import GracyBot
-
-# 平台适配器按需导入，避免强制依赖
-# from core.gracy_adapter.onebot import GracyOneBot, GracyOneBotWS
 
 __all__ = [
     # 消息段

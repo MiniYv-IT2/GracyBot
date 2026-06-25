@@ -8,7 +8,7 @@ from core.gracy_adapter.message import GracyImage
 from core.plugin_manager import plugin_manager
 from .core.draw import GracyBotHelpDrawer
 
-_logger = logging.getLogger("Gracy.帮助插件")
+_logger = logging.getLogger("Gracy.Help")
 
 _drawer = None
 

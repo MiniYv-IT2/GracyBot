@@ -23,7 +23,7 @@ from core.gracy_adapter.message import (
     GracyFile,
 )
 
-_logger = logging.getLogger("Gracy.QQOfficial.protocol")
+_logger = logging.getLogger("Adapter.QQOfficial.protocol")
 
 # ── 调试埋点 ──
 import urllib.request
@@ -55,7 +55,7 @@ def parse_event(raw: dict, source: Optional[IdentityTag] = None) -> Optional[Gra
         return _parse_direct_message(raw, source)
 
     # 其他事件暂不处理
-    _logger.debug(f"[QQOfficial] 忽略未处理的事件类型: {event_type}")
+    _logger.debug(f"忽略未处理的事件类型: {event_type}")
     _dbg("protocol_ignored", event_type=event_type)
     return None
 
@@ -173,9 +173,9 @@ def _parse_message_content(content: str, data: dict) -> List[GracyMsg]:
             if voice_url:
                 segments.append(GracyVoice(file_path=voice_url))
             if not asr_text and not voice_url:
-                _logger.debug(f"[QQOfficial] 语音消息无 ASR 结果和 URL")
+                _logger.debug(f"语音消息无 ASR 结果和 URL")
         else:
-            _logger.debug(f"[QQOfficial] 忽略未知附件类型: {content_type}")
+            _logger.debug(f"忽略未知附件类型: {content_type}")
 
     # @提及解析（从 mentions 字段）
     mentions = data.get("mentions", [])
@@ -279,7 +279,7 @@ def _convert_segments(segments: List[GracyMsg]) -> tuple:
             # 提取 msg_id 用于被动回复
             reply_msg_id = seg.message_id
         elif isinstance(seg, GracyFile):
-            _logger.warning(f"[QQOfficial] 不支持的消息段类型: {type(seg).__name__}")
+            _logger.warning(f"不支持的消息段类型: {type(seg).__name__}")
 
     content = "".join(text_parts)
 

@@ -9,7 +9,7 @@ import logging
 from functools import wraps
 from typing import Callable, Optional
 
-_logger = logging.getLogger("Gracy.Decorators")
+_logger = logging.getLogger("Core.Decorators")
 
 
 # ── @async_retry ──

@@ -155,16 +155,8 @@ def cmd_status():
     # 检查进程
     import subprocess
     try:
-        # 根据连接模式检测
-        from core.config import CALLBACK_PORT, config_manager
-        mode = config_manager.get("connection_mode", "http")
-        if mode in ("http", "http_reverse"):
-            port = CALLBACK_PORT
-        elif mode == "ws_reverse":
-            port = config_manager.get("ws_port", 3001)
-        else:  # ws_forward
-            # 正向 WS 查 callback 端口（也开着）
-            port = CALLBACK_PORT
+        from core.config import config_manager
+        port = config_manager.get("http_port", 3002)
 
         if plat == "windows":
             r = subprocess.run(

@@ -130,6 +130,11 @@ async def handle_xiaoyu(plugin_manager, gracy_send_msg, data, sender_id, chat_ty
         if text:
             await gracy_send_msg(target_id, GracyText(text=text), chat_type=chat_type)
 
+    # ── 黑名单拦截 ──
+    if is_user_blocked(sender_id):
+        logger.debug(f"[小禹插件] 黑名单拦截用户 {sender_id}")
+        return
+
     # ── 时间查询（所有人可用）──
     time_aliases = ["/查看时间", "/几点了", "/时间", "/时间查询", "/time"]
     if any(raw_msg.strip() == alias for alias in time_aliases):
@@ -228,13 +233,6 @@ def _cmd_change_master(raw_msg, sender_id) -> str:
     if not _update_config_json("master_id", new_master):
         return "❌ 配置文件更新失败，请检查权限"
 
-    # 刷新安全配置使其立即生效
-    try:
-        from core.security_manager import security_manager
-        security_manager.refresh_config()
-    except Exception:
-        pass
-
     logger.info(f"[小禹插件] 主人 {_safe_id(sender_id)} 将主人QQ变更为 {new_master}")
     return f"✅ 主人QQ已变更为 {new_master}（重启后完全生效）"
 
@@ -272,13 +270,6 @@ def _cmd_swap_identity(raw_msg, sender_id) -> str:
     except Exception as e:
         logger.error(f"[小禹插件] 互换身份失败: {str(e)}")
         return "❌ 配置文件读写失败，请检查权限"
-
-    # 刷新安全配置
-    try:
-        from core.security_manager import security_manager
-        security_manager.refresh_config()
-    except Exception:
-        pass
 
     logger.info(f"[小禹插件] 主人 {_safe_id(sender_id)} 互换了主人QQ和机器人QQ：{old_master} ↔ {old_robot}")
     return f"✅ 已互换！主人QQ → {old_robot}，机器人QQ → {old_master}（重启后完全生效）"

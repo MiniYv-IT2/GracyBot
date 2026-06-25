@@ -19,7 +19,7 @@ from PIL import Image, ImageDraw, ImageFont, ImageFilter
 from core.config import BOT_VERSION
 from .api import SearchItem, SongPlayData
 
-_logger = logging.getLogger("Gracy.音乐点歌插件")
+_logger = logging.getLogger("Gracy.Music")
 
 # ── 路径 ──
 PLUGIN_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))

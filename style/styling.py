@@ -55,7 +55,6 @@ class StylingManager:
             '插件加载完成': '插件加载完成', '插件初始化完成': '插件初始化完成',
             '日志系统初始化完成': '日志系统初始化完成', 'Web面板自启': 'Web面板自动启动',
             '无日志消息': '无日志消息',
-            '[回调基础] 收到消息': '[消息]'  # 特殊处理回调基础消息
         }
         
         # 消息类型格式化映射
@@ -84,15 +83,15 @@ class StylingManager:
         chinese_parts = []
         # 字段名直接使用中文，无需翻译映射
         key_names = {
-            'self_id': '机器人ID', 'user_id': '用户ID', 'time': '时间',
-            'message_id': '消息ID', 'message': '消息内容', 'raw_message': '消息',
-            'group_id': '群组ID', 'message_type': '消息类型', 'post_type': '事件类型',
+            'self_id': '机器人ID', 'sender_id': '用户ID', 'time': '时间',
+            'message_id': '消息ID', 'message': '消息内容', 'raw_text': '消息',
+            'target_id': '群组ID', 'chat_type': '消息类型', 'post_type': '事件类型',
             'notice_type': '通知类型', 'sub_type': '子类型', 'operator_id': '操作者ID',
             'file': '文件信息', 'content_preview': '内容预览', 'permission': '权限级别',
             'target': '目标', 'client_ip': '客户端IP', 'request_id': '请求ID',
             'path': '路径', 'timestamp': '时间', 'role': '角色',
             'action': '操作', 'resource': '资源', 'success': '结果',
-            'ip_address': 'IP地址', 'group_name': '群名称', 'chat_type': '聊天类型',
+            'ip_address': 'IP地址', 'group_name': '群名称',
         }
         for key, value in context.items():
             # 跳过空值（None或空字符串），不显示无意义字段
@@ -110,9 +109,9 @@ class StylingManager:
             elif key in ['content_preview'] and isinstance(value, str):
                 value = self._sanitize_cq_codes(value)
                 chinese_value = value[:47] + '...' if len(value) > 50 else value
-            elif key in ['raw_message'] and isinstance(value, str):
+            elif key in ['raw_text'] and isinstance(value, str):
                 chinese_value = self._sanitize_cq_codes(value)
-            elif key in ['user_id', 'self_id', 'message_id']:
+            elif key in ['sender_id', 'target_id', 'self_id', 'message_id']:
                 chinese_value = self._encrypt_user_id(value)
             elif key == 'permission':
                 chinese_value = self.context_value_mapping.get(str(value), value)
@@ -139,7 +138,7 @@ class StylingManager:
         
         return self.replace_message_keywords(str(message))
     
-    def format_dict_message(json_data: Dict[str, Any]) -> str:
+    def format_dict_message(self, json_data: Dict[str, Any]) -> str:
         """格式化字典类型的消息"""
         formatted_parts = []
         message_type = None
@@ -174,24 +173,14 @@ class StylingManager:
         
         return f"{prefix}收到消息：{' | '.join(formatted_parts)}"
     
-    def replace_message_keywords(message: str) -> str:
+    def replace_message_keywords(self, message: str) -> str:
         """替换消息中的关键词"""
-        # 优先处理：将"[回调基础] 收到消息"转换为更具体的格式
-        if '[回调基础] 收到消息' in message:
-            # 检查上下文中是否有消息类型信息
-            if 'message_type: private' in message.lower() or '私聊' in message:
-                message = message.replace('[回调基础] 收到消息', '[私聊消息]')
-            elif 'message_type: group' in message.lower() or '群聊' in message:
-                message = message.replace('[回调基础] 收到消息', '[群聊消息]')
-            else:
-                message = message.replace('[回调基础] 收到消息', '[消息]')
-        
-        # 然后替换消息类型格式
+        # 替换消息类型格式
         for old_format, new_format in self.message_type_formatting.items():
             if old_format in message:
                 message = message.replace(old_format, new_format)
         
-        # 最后替换其他关键词
+        # 替换其他关键词
         for eng, chn in self.message_mapping.items():
             if eng in message:
                 message = message.replace(eng, chn)

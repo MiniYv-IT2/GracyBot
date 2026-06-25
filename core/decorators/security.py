@@ -19,7 +19,7 @@ from typing import Callable, Dict, Optional
 
 from core.security_manager import security_manager
 
-_logger = logging.getLogger("Gracy.Decorators")
+_logger = logging.getLogger("Core.Decorators")
 
 
 # ── @require_permission ──

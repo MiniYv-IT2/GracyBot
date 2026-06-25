@@ -7,7 +7,7 @@ from core.config import get_current_master_id
 from core.gracy_adapter.send import gracy_send_msg
 from core.gracy_adapter.message import GracyImage, GracyText
 
-logger = logging.getLogger("Gracy")
+logger = logging.getLogger("Gracy.Screenshot")
 
 DATA_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "image")
 SAVE_DIR = os.path.join(DATA_DIR, "saved")
