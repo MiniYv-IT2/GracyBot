@@ -131,7 +131,7 @@ class BuiltinCommands(Stage):
             try:
                 from core.gracy_adapter.pool import adapter_pool
                 tags = adapter_pool.all_tags
-                adapter_lines = [f"├ {t.platform}/{t.bot_name}{' (' + t.conn_type_display + ')' if t.conn_type_display else ''}" for t in tags]
+                adapter_lines = [f"├ {t.platform}/{t.bot_name}{' (' + t.conn_type + ')' if t.conn_type else ''}" for t in tags]
                 adapter_str = "\n".join(adapter_lines) if adapter_lines else "无"
             except Exception:
                 adapter_str = "未知"
