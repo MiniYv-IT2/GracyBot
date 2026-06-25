@@ -373,18 +373,18 @@ async def run_bot():
         logger.warning("⚠️ 未配置任何实例，框架退出（使用 gracy instance add <name> 创建实例）")
         return
 
-    # 发送启动消息（适配器已就绪）
-    try:
-        default = adapter_pool.get_default()
-        master_id = getattr(default, '_instance_master_id', '') if default else ''
-        if master_id:
-            welcome_msg = f"🎉 GracyBot v{version_display} 启动成功！\n"
-            welcome_msg += f"📌 已加载 {plugin_manager.get_plugin_count()} 个插件"
-            asyncio.create_task(
-                gracy_send_msg(master_id, GracyText(text=welcome_msg), chat_type="private")
-            )
-    except Exception as e:
-        logger.error(f"❌ 发送启动消息失败: {str(e)}")
+    # 发送启动消息（所有适配器都发）
+    welcome_msg = f"🎉 GracyBot v{version_display} 启动成功！\n"
+    welcome_msg += f"📌 已加载 {plugin_manager.get_plugin_count()} 个插件"
+    for adapter in adapter_pool.all_adapters:
+        try:
+            master_id = getattr(adapter, '_instance_master_id', '')
+            if master_id:
+                asyncio.create_task(
+                    gracy_send_msg(master_id, GracyText(text=welcome_msg), chat_type="private")
+                )
+        except Exception:
+            continue
 
     # ── 启动 HTTP 回调服务（如有适配器需要） ──
     http_port = config_manager.get("http_port", 0)

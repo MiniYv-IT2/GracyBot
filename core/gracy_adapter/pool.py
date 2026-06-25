@@ -109,6 +109,12 @@ class AdapterPool:
             return [tag for _, tag in self._adapters.values()]
 
     @property
+    def all_adapters(self) -> List[GracyAdapter]:
+        """获取所有适配器实例"""
+        with self._lock:
+            return [adapter for adapter, _ in self._adapters.values()]
+
+    @property
     def count(self) -> int:
         """适配器数量"""
         with self._lock:
