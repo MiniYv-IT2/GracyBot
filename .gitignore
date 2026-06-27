@@ -1,14 +1,10 @@
-# ─── 配置文件（含敏感信息） ───
+# ─── 敏感配置（含QQ号/API Key） ───
 config.json
-plugins/LLM_Chat/config.json
-plugins/Easysearch/config.json
-plugins/Help_plugin/config.json
-plugins/Xiaoyu_plugin/blocklist/config.json
+style/instances/
+style/config/
 
-# ─── 保留模板文件 ───
+# ─── 保留模板 ───
 !config.template.json
-!plugins/LLM_Chat/config.template.json
-!core/gracy_adapter/onebot/onebot_config.template.json
 
 # ─── Python ───
 __pycache__/
@@ -70,5 +66,15 @@ tmp/
 temp/
 *.tmp
 
-# ─── 前端构建产物（GracyUI 需要保留） ───
-# plugins/GracyUI_plugin/frontend/dist/
+# ─── 前端依赖（GracyUI dist 保留） ───
+node_modules/
+
+# ─── 无关目录 ───
+.dbg/
+_v2_models/
+dist_extract/
+gracy_framework/
+
+# ─── 不应提交的插件 ───
+plugins/Genshin_Plugin/
+plugins/style/
