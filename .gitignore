@@ -2,7 +2,6 @@
 config.json
 style/instances/
 style/config/
-.gracybot_disabled.json
 
 # ─── 保留模板 ───
 !config.template.json
