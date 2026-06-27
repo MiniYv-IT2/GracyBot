@@ -376,12 +376,15 @@ async def run_bot():
     # 发送启动消息（所有适配器都发）
     welcome_msg = f"🎉 GracyBot v{version_display} 启动成功！\n"
     welcome_msg += f"📌 已加载 {plugin_manager.get_plugin_count()} 个插件"
-    for adapter in adapter_pool.all_adapters:
+    for tag in adapter_pool.all_tags:
         try:
+            adapter = adapter_pool.get(tag)
+            if not adapter:
+                continue
             master_id = getattr(adapter, '_instance_master_id', '')
             if master_id:
                 asyncio.create_task(
-                    gracy_send_msg(master_id, GracyText(text=welcome_msg), chat_type="private")
+                    gracy_send_msg(master_id, GracyText(text=welcome_msg), chat_type="private", tag=tag)
                 )
         except Exception:
             continue
