@@ -494,6 +494,26 @@ class PluginManager:
             self._plugin_configs[plugin_name] = {}
             return {}
 
+    def shutdown(self):
+        """关闭插件管理器，清理资源"""
+        logger.info("🔒 开始关闭插件管理器")
+        for plugin in self._registry:
+            core_module = plugin.get('core_module')
+            if core_module and hasattr(core_module, 'on_shutdown'):
+                func = getattr(core_module, 'on_shutdown')
+                if callable(func):
+                    try:
+                        func()
+                    except Exception as e:
+                        logger.error(f"调用插件 {plugin.get('name', '?')} on_shutdown 时出错: {e}")
+        self._registry.clear()
+        self._versions.clear()
+        self._dep_graph.clear()
+        self._ready_hooks.clear()
+        self._plugin_configs.clear()
+        self._initialized = False
+        logger.info("✅ 插件管理器已关闭")
+
     def get_plugin_config(self, plugin_name: str) -> dict:
         """获取插件配置"""
         return self._plugin_configs.get(plugin_name, {})
