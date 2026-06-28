@@ -1,6 +1,6 @@
-"""GracyUI Quart 应用工厂"""
+﻿"""GracyUI Quart 应用工厂"""
 import os
-from core.webserv import Quart, send_from_directory
+from graci import Quart, send_from_directory
 
 from .routes import dashboard_bp, logs_bp, auth_bp, bot_bp
 

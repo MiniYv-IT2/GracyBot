@@ -1,4 +1,4 @@
-"""GracyUI 插件 — Web 管理面板
+﻿"""GracyUI 插件 — Web 管理面板
 纯 Python 方案：Quart 内嵌服务，零 Node.js 依赖。
 """
 import logging
@@ -29,7 +29,7 @@ def _start_quart():
 
             _panel_url = f"http://127.0.0.1:{_PANEL_PORT}"
 
-            from core.webserv import Config, serve
+            from graci import Config, serve
 
             cfg = Config()
             cfg.bind = [f"0.0.0.0:{_PANEL_PORT}"]
@@ -78,9 +78,9 @@ def _boot_panel_and_notify():
 
     # 发地址给主人
     try:
-        from core.gracy_adapter.send import gracy_send_msg
-        from core.gracy_adapter.message import GracyText
-        from core.config import get_current_master_id
+        from graci import gracy_send_msg
+        from graci import GracyText
+        from graci import get_current_master_id
         import asyncio
 
         # 从 RuntimeContext 获取当前实例的主人 ID
@@ -94,7 +94,7 @@ def _boot_panel_and_notify():
             return
 
         lan = f"\n🌐 局域网：http://{local_ip}:{_PANEL_PORT}"
-        from core.config import BOT_VERSION
+        from graci import BOT_VERSION
         ver = BOT_VERSION.removeprefix('v') if BOT_VERSION.startswith('v') else BOT_VERSION
         msg = (
             "🎛️ GracyUI 管理面板已启动\n"
@@ -137,7 +137,7 @@ def start_panel_boot():
 
 # 注册 on_ready 钩子（框架初始化完成后自动调用）
 try:
-    from core.plugin_manager import plugin_manager
+    from graci import plugin_manager
     plugin_manager.register_on_ready(start_panel_boot)
 except ImportError:
     pass
@@ -179,7 +179,7 @@ async def _start_or_get_url(send_msg, sender_id, chat_type, logger):
         pass
 
     if _panel_url:
-        from core.config import BOT_VERSION
+        from graci import BOT_VERSION
         ver = BOT_VERSION.removeprefix('v') if BOT_VERSION.startswith('v') else BOT_VERSION
         lan = f"\n🌐 局域网：http://{local_ip}:{_PANEL_PORT}" if local_ip != "127.0.0.1" else ""
         await send_msg(sender_id, chat_type,

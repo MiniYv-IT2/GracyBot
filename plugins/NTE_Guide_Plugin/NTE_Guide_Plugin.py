@@ -1,4 +1,4 @@
-"""
+﻿"""
 异环(NTE)攻略插件 — 查询角色/武器/材料/兑换码
 
 命令:
@@ -14,8 +14,8 @@ import os
 import logging
 from typing import Optional
 
-from core.decorators import on_command, plugin_handler, PluginContext
-from core.gracy_adapter.message import GracyImage, GracyText
+from graci import on_command, plugin_handler, PluginContext
+from graci import GracyImage, GracyText
 
 from .config import DATA_DIR, CACHE_DIR, CACHE_MAX_DAYS
 from .core.fetcher import clear_cache
@@ -194,7 +194,7 @@ async def handle_nte(ctx: PluginContext):
 
         # ── /异环清理缓存 ──
         if cmd == "/异环清理缓存":
-            from core.plugin_manager import plugin_manager
+            from graci import plugin_manager
             cfg = plugin_manager.get_plugin_config("NTE_Guide_Plugin")
             max_days = cfg.get("cache_max_days", 7) if cfg else 7
 

@@ -1,10 +1,10 @@
-import os
+﻿import os
 import urllib.parse
 import sys
 import logging
 from typing import Dict, Optional
 from playwright.async_api import async_playwright, TimeoutError as PwTimeout
-from core.plugin_manager import plugin_manager
+from graci import plugin_manager
 
 _logger = logging.getLogger("Gracy.Easysearch")
 

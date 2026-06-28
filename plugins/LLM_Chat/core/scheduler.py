@@ -1,4 +1,4 @@
-import threading
+﻿import threading
 import time
 import asyncio
 import re
@@ -154,8 +154,8 @@ def execute_task(chat_id, task_content, persona):
     chat_type, target_id = chat_id.split("_", 1)
     
     try:
-        from core.gracy_adapter.send import gracy_send_msg
-        from core.gracy_adapter.message import GracyText
+        from graci import gracy_send_msg
+        from graci import GracyText
         asyncio.run(gracy_send_msg(target_id, GracyText(text=reply), chat_type=chat_type))
     except:
         pass

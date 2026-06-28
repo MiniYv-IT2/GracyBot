@@ -1,9 +1,9 @@
-"""仪表盘 API — 系统状态 / 好友 / 群聊"""
+﻿"""仪表盘 API — 系统状态 / 好友 / 群聊"""
 import time
 import platform
 import asyncio
 import psutil
-from core.webserv import Blueprint
+from graci import Blueprint
 
 dashboard_bp = Blueprint("dashboard", __name__, url_prefix="/api")
 
@@ -144,7 +144,7 @@ async def api_stats():
     friend_count = 0
     group_count = 0
     try:
-        from core.gracy_adapter.send import gracy_get_platform_info
+        from graci import gracy_get_platform_info
         info = await gracy_get_platform_info()
         friend_count = info.get("friend_count", 0) or 0
         group_count = info.get("group_count", 0) or 0
@@ -152,7 +152,7 @@ async def api_stats():
         pass
 
     try:
-        from core.config import BOT_VERSION
+        from graci import BOT_VERSION
     except Exception:
         BOT_VERSION = os.environ.get("GRACY_BOT_VERSION", "unknown")
 

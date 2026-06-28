@@ -1,4 +1,4 @@
-"""Matcher 桥接 — NoneBot Matcher 的 Gracone 实现
+﻿"""Matcher 桥接 — NoneBot Matcher 的 Gracone 实现
 
 将 NoneBot 的 on_command / on_regex / on_keyword 注册为 GraconeMatcher 实例。
 当 GracyBot 事件到达时，匹配并执行 NoneBot 插件的 handler。
@@ -9,8 +9,8 @@ import logging
 import re
 from typing import Any, Callable, Dict, List, Optional, Pattern, Set, Tuple, Union
 
-from core.gracy_adapter.send import gracy_send_msg
-from core.gracy_adapter.message import GracyText
+from graci import gracy_send_msg
+from graci import GracyText
 
 from gracone_nonebot import (
     FinishedException, PausedException, StopPropagation, SkippedException,

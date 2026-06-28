@@ -1,9 +1,9 @@
-"""示例插件核心功能文件
+﻿"""示例插件核心功能文件
 演示如何使用版本控制和依赖管理功能
 """
 
-from core.utils import logger
-from core.plugin_manager import plugin_manager
+from graci import logger
+from graci import plugin_manager
 
 def handle_example(plugin_manager, gracy_send_msg, data, sender_id, chat_type, permission, logger, **_):
     """示例插件处理函数"""

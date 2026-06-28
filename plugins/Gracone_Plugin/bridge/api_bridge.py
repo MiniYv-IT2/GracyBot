@@ -1,4 +1,4 @@
-"""API 桥接 — 模拟 NoneBot Bot 实例，将所有操作翻译为 GracyBot API
+﻿"""API 桥接 — 模拟 NoneBot Bot 实例，将所有操作翻译为 GracyBot API
 
 NoneBot 插件的 handler 接收到的 Bot 参数实际上是 GraconeBot 实例，
 它的 send_msg / call_api 等方法最终调用 gracy_send_msg / gracy_call_api。
@@ -7,9 +7,9 @@ NoneBot 插件的 handler 接收到的 Bot 参数实际上是 GraconeBot 实例�
 import logging
 from typing import Any, Dict, List, Optional
 
-from core.gracy_adapter.send import gracy_send_msg, gracy_call_api
-from core.gracy_adapter.identity import IdentityTag
-from core.gracy_adapter.message import GracyText
+from graci import gracy_send_msg, gracy_call_api
+from graci import IdentityTag
+from graci import GracyText
 
 from bridge.message_translator import nb_to_gracy_segments
 from bridge.event_translator import nb_to_gracy_event

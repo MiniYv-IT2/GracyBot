@@ -1,4 +1,4 @@
-"""小禹插件 — 帮助图片绘制模块
+﻿"""小禹插件 — 帮助图片绘制模块
 从 PLUGIN_REGISTRY 动态读取小禹插件命令，自动跟随元数据更新
 布局复用 Help_plugin 风格：渐变背景 + Logo + 卡片
 """
@@ -32,8 +32,8 @@ _ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.
 _RES = os.path.join(_ROOT, "style", "resource")
 
 sys.path.append(_ROOT)
-from core.utils import logger
-from core.config import BOT_VERSION
+from graci import logger
+from graci import BOT_VERSION
 
 
 class XiaoyuHelpDrawer:
@@ -155,7 +155,7 @@ class XiaoyuHelpDrawer:
         """从 PLUGIN_REGISTRY 读取小禹插件的命令列表（每次调用都重新读，自动跟随热重载更新）"""
         result: Dict[str, List[str]] = {}
         try:
-            from core.plugin_manager import plugin_manager
+            from graci import plugin_manager
             for plugin in plugin_manager.registry:
                 if plugin.get("name") == "小禹插件":
                     cmds = plugin.get("commands", [])

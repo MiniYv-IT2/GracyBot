@@ -1,6 +1,6 @@
-import asyncio
-from core.config import get_current_master_id
-from core.decorators.registration import on_fallback
+﻿import asyncio
+from graci import get_current_master_id
+from graci import on_fallback
 from .core.event_handler import (
     is_master, handle_chat_help, handle_set_openai, handle_set_vision_model,
     handle_vision_switch,

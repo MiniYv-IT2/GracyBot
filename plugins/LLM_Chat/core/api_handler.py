@@ -1,8 +1,8 @@
-import json
+﻿import json
 import os
 import logging
 from openai import AsyncOpenAI
-from core.plugin_manager import plugin_manager
+from graci import plugin_manager
 
 logger = logging.getLogger("Gracy.LLMChat")
 

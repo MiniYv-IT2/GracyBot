@@ -1,4 +1,4 @@
-"""
+﻿"""
 音乐点歌插件 — 柠柚点歌 API（搜索 + 播放一体化）
 
 命令：
@@ -14,9 +14,9 @@ from typing import Optional
 
 import httpx
 
-from core.decorators import on_command, plugin_handler, PluginContext
-from core.gracy_adapter.message import GracyImage, GracyText, GracyVoice
-from core.plugin_manager import plugin_manager
+from graci import on_command, plugin_handler, PluginContext
+from graci import GracyImage, GracyText, GracyVoice
+from graci import plugin_manager
 
 from .core.api import search_songs, play_song, SearchItem, SongPlayData
 from .core.draw import draw_search_results, draw_song_detail

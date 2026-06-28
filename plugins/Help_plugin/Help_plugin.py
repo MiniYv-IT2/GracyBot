@@ -1,11 +1,11 @@
-"""帮助插件 — 查询所有插件命令，返回帮助图片"""
+﻿"""帮助插件 — 查询所有插件命令，返回帮助图片"""
 import collections
 import os
 import logging
 
-from core.decorators import on_command, plugin_handler, PluginContext
-from core.gracy_adapter.message import GracyImage
-from core.plugin_manager import plugin_manager
+from graci import on_command, plugin_handler, PluginContext
+from graci import GracyImage
+from graci import plugin_manager
 from .core.draw import GracyBotHelpDrawer
 
 _logger = logging.getLogger("Gracy.Help")
@@ -26,7 +26,7 @@ def _get_drawer():
 async def handle_help(ctx: PluginContext):
     """生成帮助图片并发送"""
     # 收集所有插件命令
-    from core.plugin_manager import plugin_manager
+    from graci import plugin_manager
     plugin_commands = collections.defaultdict(list)
     for plugin in plugin_manager.registry:
         name = plugin.get("name", "未知插件")

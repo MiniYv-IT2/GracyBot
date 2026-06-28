@@ -1,6 +1,7 @@
 # 基础 API 参考
 
 > 框架核心模块的函数、类和常量速查手册。
+> 插件开发者请使用 `from graci import xxx`（外观层），本文档部分内部 API 仅供框架/适配器开发者参考。
 
 ---
 
@@ -60,16 +61,13 @@
 ### 消息段 `message.py`
 
 ```python
-from core.gracy_adapter.message import (
+from graci import (
     GracyMsg,         # Union 类型别名（消息段联合类型）
     GracyText,        # GracyText(text: str)
     GracyImage,       # GracyImage(file_path=""/url=""/file_data=b"")
     GracyAt,          # GracyAt(target_id: str)
     GracyReply,       # GracyReply(message_id: str)
     GracyVoice,       # GracyVoice(file_path=""/url="")
-    GracyFile,        # GracyFile(file_path=""/url="")
-    gracy_text,       # 工厂函数
-    gracy_image,      # 工厂函数
 )
 ```
 
@@ -125,7 +123,7 @@ async def gracy_get_platform_info(
 ### 命令注册
 
 ```python
-from core.decorators import (
+from graci import (
     on_command,             # @on_command("/cmd1", "/cmd2")
     on_regex,               # @on_regex(r"pattern")
     on_keyword,             # @on_keyword("关键词")

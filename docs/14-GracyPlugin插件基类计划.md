@@ -2,7 +2,7 @@
 
 ## 目标
 
-为 GracyBot 提供统一的插件编程模型，`from core.decorators import GracyPlugin`，三种模式归一。
+为 GracyBot 提供统一的插件编程模型，`from graci import GracyPlugin`，三种模式归一。
 
 ## 改动范围
 

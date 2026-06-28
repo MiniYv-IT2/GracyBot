@@ -1,4 +1,4 @@
-import io
+﻿import io
 import os
 import textwrap
 from typing import Dict, List, Tuple, Any
@@ -6,7 +6,7 @@ from typing import Dict, List, Tuple, Any
 import numpy as np
 from PIL import Image, ImageDraw, ImageFont
 
-from core.utils import logger
+from graci import logger
 from core.config import *
 
 

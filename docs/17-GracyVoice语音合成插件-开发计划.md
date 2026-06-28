@@ -79,9 +79,9 @@ is_at_required = false
 import os
 import logging
 
-from core.decorators import on_command, plugin_handler, PluginContext
-from core.gracy_adapter.message import GracyVoice  # 语音消息段（需确认框架是否支持）
-from core.config import get_current_master_id
+from graci import on_command, plugin_handler, PluginContext
+from graci import GracyVoice  # 语音消息段（需确认框架是否支持）
+from graci import get_current_master_id
 
 _logger = logging.getLogger("Gracy.GracyVoice")
 
@@ -108,13 +108,13 @@ import os
 import logging
 
 # 第 2 层：框架装饰器
-from core.decorators import on_command, plugin_handler, PluginContext
+from graci import on_command, plugin_handler, PluginContext
 
 # 第 3 层：框架消息段
-from core.gracy_adapter.message import GracyText, GracyImage
+from graci import GracyText, GracyImage
 
 # 第 4 层：框架工具
-from core.config import get_current_master_id, get_current_robot_id
+from graci import get_current_master_id, get_current_robot_id
 
 # 第 5 层：插件自身模块
 from .core.tts_engine import text_to_speech

@@ -1,4 +1,4 @@
-import logging
+﻿import logging
 from typing import Dict, Optional
 
 
@@ -10,7 +10,7 @@ class NapcatAPI:
         pass
 
     async def _call(self, action: str, params: dict = None) -> Optional[dict]:
-        from core.gracy_adapter.send import gracy_call_api
+        from graci import gracy_call_api
         return await gracy_call_api(action, params or {})
     
     async def get_login_info(self) -> Optional[Dict]:

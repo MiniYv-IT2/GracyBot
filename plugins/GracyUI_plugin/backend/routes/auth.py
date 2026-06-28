@@ -1,6 +1,6 @@
-"""登录认证 API"""
+﻿"""登录认证 API"""
 import secrets
-from core.webserv import Blueprint, request
+from graci import Blueprint, request
 
 auth_bp = Blueprint("auth", __name__, url_prefix="/api")
 

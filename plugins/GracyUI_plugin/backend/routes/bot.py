@@ -1,5 +1,5 @@
-"""Bot 信息 API — QQ 头像 / 昵称"""
-from core.webserv import Blueprint
+﻿"""Bot 信息 API — QQ 头像 / 昵称"""
+from graci import Blueprint
 
 bot_bp = Blueprint("bot", __name__, url_prefix="/api")
 
@@ -10,13 +10,13 @@ async def api_bot_info():
     robot_id = ""
     nickname = "GracyBot"
     try:
-        from core.config import ROBOT_ID
+        from graci import ROBOT_ID
         robot_id = str(ROBOT_ID)
     except Exception:
         pass
 
     try:
-        from core.gracy_adapter.send import gracy_get_platform_info
+        from graci import gracy_get_platform_info
         info = await gracy_get_platform_info()
         nickname = info.get("nickname", "GracyBot")
     except Exception:

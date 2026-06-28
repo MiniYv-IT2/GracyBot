@@ -1,6 +1,6 @@
-import logging
-from core.gracy_adapter.send import gracy_send_msg
-from core.gracy_adapter.message import GracyImage, GracyText
+﻿import logging
+from graci import gracy_send_msg
+from graci import GracyImage, GracyText
 
 from .main import do_search, do_browse
 from .core.draw import draw_error

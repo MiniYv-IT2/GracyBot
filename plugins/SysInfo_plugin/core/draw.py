@@ -1,4 +1,4 @@
-import io
+﻿import io
 import os
 import sys
 import platform
@@ -16,7 +16,7 @@ logger = logging.getLogger("Gracy.SysInfo.draw")
 # 路径配置
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 try:
-    from core.config import BOT_VERSION, ROBOT_ID  # 导入框架版本和配置
+    from graci import BOT_VERSION, ROBOT_ID  # 导入框架版本和配置
 except ImportError:
     BOT_VERSION = os.environ.get("GRACY_BOT_VERSION", "unknown")
     ROBOT_ID = "未知"

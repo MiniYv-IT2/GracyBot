@@ -44,7 +44,7 @@
 ### 注册接口
 
 ```python
-from core.tools.cli.plugins import register_cli_command
+from graci import register_cli_command
 
 def my_cli_handler():
     """我的插件的 CLI 命令"""
@@ -58,8 +58,7 @@ register_cli_command("my-plugin", my_cli_handler, help_text="我的插件 CLI �
 ```python
 """示例插件 — 带有 CLI 命令"""
 import logging
-from core.decorators import on_command, plugin_handler, PluginContext
-from core.tools.cli.plugins import register_cli_command
+from graci import on_command, plugin_handler, PluginContext, register_cli_command
 
 _logger = logging.getLogger("Gracy.示例插件")
 

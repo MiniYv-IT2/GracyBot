@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
 系统更新插件
@@ -17,10 +17,10 @@ from typing import Dict, List, Optional
 # 添加项目根目录到Python路径
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
-from core.utils import logger
-from core.gracy_adapter.send import gracy_send_msg
-from core.gracy_adapter.message import GracyText
-from core.config import MASTER_ID
+from graci import logger
+from graci import gracy_send_msg
+from graci import GracyText
+from graci import MASTER_ID
 
 # 插件信息
 PLUGIN_INFO = {
@@ -173,7 +173,7 @@ class UpdateManager:
         """获取当前版本号（同步方式，仅尝试导入配置）"""
         try:
             # 从core/config.py获取版本号配置
-            from core.config import BOT_VERSION
+            from graci import BOT_VERSION
             version = BOT_VERSION
             # 移除可能的v前缀
             if version.startswith('v'):

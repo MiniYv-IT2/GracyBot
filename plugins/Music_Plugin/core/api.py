@@ -1,4 +1,4 @@
-"""
+﻿"""
 音乐 API 层 — 柠柚点歌 API（搜索 + 播放一体）
 
 API:
@@ -16,7 +16,7 @@ from typing import Dict, List, Optional
 
 import httpx
 
-from core.plugin_manager import plugin_manager
+from graci import plugin_manager
 
 _logger = None
 

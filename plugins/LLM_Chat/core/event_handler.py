@@ -1,4 +1,4 @@
-import json
+﻿import json
 import os
 import re
 from datetime import datetime
@@ -297,7 +297,7 @@ async def handle_ai_chat(bot, target_id, chat_type, message, user_id, nickname, 
             tmp_path = os.path.join(tempfile.gettempdir(), f"tts_{hash(reply)}.wav")
             audio_path = await tts_client.synthesize(reply, tmp_path)
             if audio_path and os.path.exists(audio_path):
-                from core.gracy_adapter.message import GracyVoice
+                from graci import GracyVoice
                 await bot(target_id, GracyVoice(file_path=audio_path), chat_type=chat_type)
                 return
         except Exception as e:
@@ -343,7 +343,7 @@ async def _fetch_via_napcat(file_id: str) -> str:
     import os as _os
     log = logging.getLogger("Gracy.LLMChat")
     try:
-        from core.gracy_adapter.send import gracy_call_api
+        from graci import gracy_call_api
         log.info(f"[图片] 通过NapCat获取本地路径: file={file_id[:30]}...")
         result = await gracy_call_api("get_image", {"file": file_id})
         if isinstance(result, dict):

@@ -1,11 +1,11 @@
-import os
+﻿import os
 import shutil
 import logging
 import asyncio
 
-from core.config import get_current_master_id
-from core.gracy_adapter.send import gracy_send_msg
-from core.gracy_adapter.message import GracyImage, GracyText
+from graci import get_current_master_id
+from graci import gracy_send_msg
+from graci import GracyImage, GracyText
 
 logger = logging.getLogger("Gracy.Screenshot")
 

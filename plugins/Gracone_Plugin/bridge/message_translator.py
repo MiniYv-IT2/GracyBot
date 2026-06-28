@@ -1,10 +1,10 @@
-"""消息段翻译器 — GracyMsg ↔ OneBot V11 Message/MessageSegment 双向转换"""
+﻿"""消息段翻译器 — GracyMsg ↔ OneBot V11 Message/MessageSegment 双向转换"""
 
 from typing import Any, List, Optional, Union
 
+from graci import GracyText, GracyImage, GracyVoice
 from core.gracy_adapter.message import (
-    GracyMsg, GracyText, GracyImage, GracyAt, 
-    GracyReply, GracyVoice, GracyFile,
+    GracyMsg, GracyAt, GracyReply, GracyFile,
 )
 
 

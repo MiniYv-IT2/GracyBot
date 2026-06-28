@@ -1,4 +1,4 @@
-"""
+﻿"""
 gracone_core.py — Gracone 加载引擎
 
 职责:
@@ -15,8 +15,7 @@ import logging
 import importlib.util
 from pathlib import Path
 
-from core.pipeline import Stage
-from core.runtime import RuntimeRegistry
+from graci import Stage, RuntimeRegistry
 from bridge.matcher_bridge import matcher_manager, dispatch_event, inject_into_nonebot
 
 _logger = logging.getLogger("Gracone")
@@ -361,7 +360,7 @@ class GraconeStage(Stage):
             return ctx
 
         # 从 PluginContext 构造 GracyEvent 给 dispatch_event
-        from core.gracy_adapter.event import GracyEvent
+        from graci import GracyEvent
 
         event = GracyEvent(
             sender_id=ctx.sender_id,
@@ -440,7 +439,7 @@ def initialize():
     _run_fake_driver_startup()
 
     # 注入 Pipeline Stage — 在 on_ready 时执行（确保 Runtime 已就绪）
-    from core.plugin_manager import plugin_manager
+    from graci import plugin_manager
     plugin_manager.register_on_ready(_inject_stage_into_runtimes)
 
     _gracone_initialized = True

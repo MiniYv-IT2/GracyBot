@@ -1,4 +1,4 @@
-import subprocess
+﻿import subprocess
 import platform
 import time
 import logging
@@ -13,16 +13,13 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 # 添加插件路径
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
-from core.config import (
-    ROBOT_START_TIME,
-    BOT_VERSION,
-    MASTER_ID,
-    LOG_ENCODING,
+from graci import (
+    ROBOT_START_TIME, BOT_VERSION, MASTER_ID, LOG_ENCODING,
     get_current_robot_id,
 )
-from core.gracy_adapter.send import gracy_send_msg
-from core.gracy_adapter.message import GracyImage, GracyText
-from core.security import sanitize_log
+from graci import gracy_send_msg
+from graci import GracyImage, GracyText
+from graci import sanitize_log
 logger = logging.getLogger("Gracy.SysInfo")
 
 CACHE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "cache")
@@ -298,7 +295,7 @@ async def _get_robot_info() -> Dict:
     }
 
     try:
-        from core.gracy_adapter.send import gracy_get_platform_info
+        from graci import gracy_get_platform_info
         platform_info = await gracy_get_platform_info()
         if platform_info.get("friend_count") is not None:
             robot_info["friend_count"] = platform_info["friend_count"]
@@ -313,7 +310,7 @@ async def _get_robot_info() -> Dict:
     except Exception as e:
         logger.error(f"[SysInfo] 获取机器人/好友/群信息失败: {type(e).__name__}: {e}")
     try:
-        from core.plugin_manager import plugin_manager
+        from graci import plugin_manager
         robot_info["plugin_count"] = len(plugin_manager.registry)
         command_count = 0
         for plugin in plugin_manager.registry:

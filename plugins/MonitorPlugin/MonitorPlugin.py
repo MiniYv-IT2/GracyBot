@@ -1,12 +1,12 @@
-"""监控面板插件核心功能
+﻿"""监控面板插件核心功能
 提供系统状态和性能指标查看功能
 """
 
-from core.utils import logger
-from core.monitor import monitor_manager
-from core.plugin_manager import plugin_manager
-from core.gracy_adapter.send import gracy_send_msg
-from core.gracy_adapter.message import GracyText
+from graci import logger
+from graci import monitor_manager
+from graci import plugin_manager
+from graci import gracy_send_msg
+from graci import GracyText
 
 async def handle_monitor(*args, **kwargs):
     """监控面板处理函数"""

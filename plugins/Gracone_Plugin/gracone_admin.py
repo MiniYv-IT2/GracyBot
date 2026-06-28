@@ -1,4 +1,4 @@
-"""
+﻿"""
 gracone_admin.py — Gracone 管理命令
 
 职责:
@@ -17,7 +17,7 @@ from urllib.request import urlopen, Request
 from urllib.error import URLError
 import json
 
-from core.decorators import on_command, plugin_handler, PluginContext, require_master
+from graci import on_command, plugin_handler, PluginContext, require_master
 
 from gracone_core import (
     GRACONE_VERSION,
@@ -39,7 +39,7 @@ _logger = logging.getLogger("Gracone.Admin")
 
 def _check_master(ctx: PluginContext) -> bool:
     """检查是否为主人"""
-    from core.security_manager import security_manager
+    from graci import security_manager
     is_master, _ = security_manager.check_master_permission(ctx.sender_id)
     return is_master
 

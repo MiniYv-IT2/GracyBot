@@ -1,4 +1,4 @@
-"""
+﻿"""
 gracone_ext_plugins.py — 注入 NoneBot 外部插件的虚拟命名空间
 
 为以下插件提供最小 fake 实现，使依赖它们的 NoneBot 插件能通过 import：
@@ -135,8 +135,8 @@ class UniMessage:
                     await ctx.matcher.send(msg)
             elif image_raw:
                 # 文字+图片 → 通过 gracy_send_msg 一条消息发送
-                from core.gracy_adapter.send import gracy_send_msg
-                from core.gracy_adapter.message import GracyText, GracyImage
+                from graci import gracy_send_msg
+                from graci import GracyText, GracyImage
                 segs = []
                 if msg:
                     segs.append(GracyText(text=msg))
@@ -273,8 +273,8 @@ class Command:
                 if result is not None:
                     from bridge.matcher_bridge import _send_via_context
                     from context import GraconeContext
-                    from core.gracy_adapter.send import gracy_send_msg
-                    from core.gracy_adapter.message import GracyImage, GracyText
+                    from graci import gracy_send_msg
+                    from graci import GracyImage, GracyText
                     ctx = GraconeContext.get()
                     if ctx:
                         target = ctx.gracy_event.target_id

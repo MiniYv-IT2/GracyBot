@@ -1,4 +1,4 @@
-"""
+﻿"""
 绘图渲染模块 — 搜索列表 / 歌曲详情卡片
 
 支持：
@@ -16,7 +16,7 @@ from typing import List, Optional
 import httpx
 from PIL import Image, ImageDraw, ImageFont, ImageFilter
 
-from core.config import BOT_VERSION
+from graci import BOT_VERSION
 from .api import SearchItem, SongPlayData
 
 _logger = logging.getLogger("Gracy.Music")

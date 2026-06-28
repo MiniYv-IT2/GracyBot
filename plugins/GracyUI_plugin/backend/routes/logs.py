@@ -1,9 +1,9 @@
-"""日志中枢 API — 读取 GracyBot 日志目录"""
+﻿"""日志中枢 API — 读取 GracyBot 日志目录"""
 import os
 import re
 import time as _time_module
 from datetime import datetime
-from core.webserv import Blueprint, request
+from graci import Blueprint, request
 
 logs_bp = Blueprint("logs", __name__, url_prefix="/api")
 

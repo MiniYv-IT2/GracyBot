@@ -1,4 +1,4 @@
-"""事件翻译器 — GracyEvent ↔ NoneBot 通用 Event 双向转换
+﻿"""事件翻译器 — GracyEvent ↔ NoneBot 通用 Event 双向转换
 
 平台无关设计，直接翻译为 nonebot.adapters.MessageEvent，
 不引入任何 OneBot V11 特定类型。
@@ -7,7 +7,7 @@
 import time
 from typing import Any, Optional
 
-from core.gracy_adapter.event import GracyEvent
+from graci import GracyEvent
 
 from bridge.message_translator import gracy_to_nb_message, nb_to_gracy_segments
 

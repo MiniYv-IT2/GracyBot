@@ -1,4 +1,4 @@
-"""小禹插件 — 核心控制中枢
+﻿"""小禹插件 — 核心控制中枢
 功能：系统时间查询 | 复读机 | 主人/机器人QQ变更 | 黑名单管理（持久化，重启有效）| 热重载开关
 热重载验证通过 ✅
 """
@@ -12,11 +12,11 @@ import logging
 from datetime import datetime
 from typing import Tuple, List, Optional
 
-from core.config import get_current_master_id
-from core.utils import logger
-from core.gracy_adapter.send import gracy_send_msg
-from core.gracy_adapter.send import gracy_call_api
-from core.gracy_adapter.message import GracyImage, GracyText
+from graci import get_current_master_id
+from graci import logger
+from graci import gracy_send_msg
+from graci import gracy_call_api
+from graci import GracyImage, GracyText
 from .core.draw import XiaoyuHelpDrawer
 import asyncio
 
@@ -111,7 +111,7 @@ def _validate_qq(qq: str) -> Tuple[bool, str]:
 def _update_config_json(key: str, value: str) -> bool:
     """使用框架配置管理器更新配置"""
     try:
-        from core.plugin_manager import plugin_manager
+        from graci import plugin_manager
         plugin_manager.set_plugin_config("Xiaoyu_plugin", key, value)
         return True
     except Exception as e:
@@ -258,7 +258,7 @@ def _cmd_swap_identity(raw_msg, sender_id) -> str:
     """互换主人QQ和机器人QQ（防填反）"""
     try:
         from core.config_manager import config_manager
-        from core.plugin_manager import plugin_manager
+        from graci import plugin_manager
         old_master = str(config_manager.get("master_id", ""))
         old_robot = str(config_manager.get("robot_id", ""))
         if not old_master or not old_robot:
