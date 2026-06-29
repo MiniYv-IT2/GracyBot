@@ -14,15 +14,18 @@ from typing import Any, Dict, List, Optional, Tuple
 
 
 # ── 分类映射规则 ──
-# 优先级: 精确匹配前缀 > 泛匹配
+# 注意: 子前缀（如 "Gracy.GracyUI"）必须在泛指 "Gracy." 之前，否则被抢先匹配
 CATEGORY_PREFIXES: Dict[str, str] = {
-    "Core.":        "Core",
-    "Adapter.":     "Adapter",
-    "Tool.":        "Tool",
-    "Gracy.":       "Gracy",
-    "GracyUI":      "GracyUI",
-    "Gracone.":     "Gracy",
-    "Gracone":      "Gracy",
+    "Core.":            "Core",
+    "Adapter.":         "Adapter",
+    "Tool.":            "Tool",
+    "Gracy.GracyUI.":   "GracyUI",
+    "Gracy.GracyUI":    "GracyUI",
+    "Gracy.Gracone.":   "Gracone",
+    "Gracy.Gracone":    "Gracone",
+    "Gracy.":           "Gracy",
+    "GracyUI":          "GracyUI",
+    "Gracone":          "Gracone",
 }
 
 
