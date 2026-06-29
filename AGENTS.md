@@ -33,6 +33,19 @@
 
 ---
 
+## 日志分类规则
+
+- **普通插件**：`get_logger("插件名")` → `Gracy.插件名` → 显示 `[Gracy] [插件名]`
+- **框架内部**：`logging.getLogger("Core.Xxx")` → 显示 `[Core] [Xxx]`
+- **适配器**：`logging.getLogger("Adapter.Xxx")` → 显示 `[Adapter] [Xxx]`
+- **GracyUI**（系统大插件）：`get_logger("GracyUI")` → 映射到 `[GracyUI]` 独立分类
+- **Gracone**（系统大插件）：`get_logger("Gracone")` → 映射到 `[Gracone]` 独立分类
+- 开发者用 `logging.getLogger("MyPlugin")` 自动取第一个 `.` 前为分类，无需改映射
+
+映射规则在 `core/tools/log_tool.py` 的 `CATEGORY_PREFIXES`，未来框架剥离时注意保留或迁移此表。
+
+---
+
 ## 项目概述
 
 GracyBot 是 IM 多平台轻量异步机器人框架，基于 asyncio + Quart。

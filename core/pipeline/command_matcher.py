@@ -52,7 +52,7 @@ class CommandMatcher(Stage):
             ctx.command = best["matched_cmd"]
             ctx.plugin_name = plugin["name"]
             ctx.extra["priority"] = best["priority"]
-            ctx.extra["handler_func"] = plugin.get("handler_func")
+            ctx.extra["handler_func"] = plugin.get("command_handlers", {}).get(ctx.command) or plugin.get("handler_func")
             ctx.extra["_match_source"] = "toml"
             _logger.debug(f"[CommandMatcher] TOML 并行匹配: {plugin['name']} → {best['matched_cmd']} (priority={best['priority']})")
             return ctx

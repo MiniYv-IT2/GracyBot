@@ -45,7 +45,6 @@ from graci import (
 )
 
 # Layer 5: 本地模块
-from .metadata import PLUGIN_NAME, PLUGIN_VERSION
 
 # Layer 6: 日志器
 logger = get_logger("Example")
@@ -108,7 +107,7 @@ async def handle_owner_only(ctx: PluginContext):
     logger.info(f"主人 {ctx.sender_id} 查看状态")
 
 @on_command("/joke")
-@rate_limit(calls=3, period=60)
+@rate_limit(max_calls=3, period=60)
 @plugin_handler
 async def handle_joke(ctx: PluginContext):
     """随机冷笑话 — 演示 rate_limit（每分钟最多 3 次）"""
@@ -138,14 +137,20 @@ async def handle_meme(ctx: PluginContext):
 @on_command("/botinfo")
 @plugin_handler
 async def handle_bot_info(ctx: PluginContext):
-    """平台 API — 演示 gracy_call_api"""
-    result = await gracy_call_api("get_bot_info", {})
-    await ctx.reply(f"平台信息：{json.dumps(result, ensure_ascii=False, indent=2)}")
+    """平台信息 — 演示 gracy_get_platform_info"""
+    info = await gracy_get_platform_info()
+    lines = [
+        f"昵称: {info.get('nickname', '?')}",
+        f"平台: {info.get('platform', '?')}",
+        f"协议: {info.get('protocol_version', '?')}",
+        f"好友: {info.get('friend_count', '?')}",
+        f"群聊: {info.get('group_count', '?')}",
+    ]
+    await ctx.reply("\n".join(lines))
     logger.info(f"用户 {ctx.sender_id} 查询平台信息")
 
-@background(interval=3600)
 async def _cleanup_cache():
-    """定时任务（每小时）— 清理过期缓存文件"""
+    """定时任务 — 清理过期缓存文件"""
     logger.debug("开始清理缓存...")
     if not os.path.isdir(CACHE_DIR):
         return

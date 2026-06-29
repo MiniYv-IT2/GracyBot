@@ -330,7 +330,7 @@ class PluginManager:
                         for cmd in entry.get("commands", []):
                             if cmd not in p["commands"]:
                                 p["commands"].append(cmd)
-                        p["handler_func"] = entry["handler_func"]
+                            p.setdefault("command_handlers", {})[cmd] = entry["handler_func"]
                         break
             else:
                 merged = {

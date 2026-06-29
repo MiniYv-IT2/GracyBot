@@ -49,7 +49,11 @@ def plugin_handler(func: Callable) -> Callable:
         # ── 权限校验 ──
         perm_level = getattr(func, "_gracy_permission", getattr(wrapper, "_gracy_permission", None))
         if perm_level and perm_level != "all":
-            allowed = await check_permission_decorator(ctx.sender_id, perm_level)
+            if perm_level == "master":
+                from core.pipeline.helpers import is_master
+                allowed = is_master(ctx)
+            else:
+                allowed = await check_permission_decorator(ctx.sender_id, perm_level)
             if not allowed:
                 _logger.warning(
                     f"[装饰器] 权限不足: 用户{ctx.sender_id} 命令={ctx.command} "

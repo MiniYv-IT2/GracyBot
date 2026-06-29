@@ -79,16 +79,21 @@ from graci import (
 ```python
 @dataclass
 class GracyEvent:
-    sender_id: str          # 发送者
-    target_id: str          # 目标
-    chat_type: str          # "private" | "group"
-    segments: list          # 消息段列表
-    raw_text: str           # 原始文本
-    message_id: str         # 消息 ID
-    nickname: str           # 昵称
-    is_at_bot: bool         # 是否 @机器人
-    raw_data: dict          # 平台原始数据
-    source: Optional[IdentityTag]  # 消息来源适配器标签（多实例路由用）
+    sender_id: str                               # 发送者 ID
+    target_id: str                               # 目标 ID
+    chat_type: str                               # "private" | "group"
+    segments: List[GracyMsg] = field(default_factory=list)  # 结构化消息段
+    raw_text: str = ""                           # 纯文本摘要
+    message_id: str = ""                         # 平台消息 ID
+    nickname: str = ""                           # 发送者昵称
+    is_at_bot: bool = False                      # 是否 @了机器人
+    raw_data: dict = field(default_factory=dict) # 平台原始数据
+    source: Optional[IdentityTag] = None         # 消息来源适配器标签
+    cancelled: bool = False                      # 是否被拦截
+
+    def cancel(self): ...                        # 拦截此事件
+    @property
+    def plain_text(self) -> str: ...             # 提取所有文本段
 ```
 
 ### 发送 `send.py`
