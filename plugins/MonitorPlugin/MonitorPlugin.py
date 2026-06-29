@@ -2,16 +2,14 @@
 提供系统状态和性能指标查看功能
 """
 
-from graci import logger
-from graci import monitor_manager
-from graci import plugin_manager
-from graci import gracy_send_msg
-from graci import GracyText
+from graci import get_logger, gracy_send_msg, GracyText, monitor_manager, plugin_manager
+
+logger = get_logger("Monitor")
 
 async def handle_monitor(*args, **kwargs):
     """监控面板处理函数"""
     try:
-        logger.info(f"[MonitorPlugin] handle_monitor函数被调用，args数量: {len(args)}, kwargs: {list(kwargs.keys())}")
+        logger.info(f"handle_monitor函数被调用，args数量: {len(args)}, kwargs: {list(kwargs.keys())}")
         
         # 从args中获取参数（完全匹配handler.py的调用方式）
         plugin_manager = args[0] if len(args) > 0 else None
@@ -34,33 +32,33 @@ async def handle_monitor(*args, **kwargs):
         if not isinstance(raw_msg, str):
             raw_msg = str(raw_msg)
         
-        logger.info(f"[MonitorPlugin] 调试参数 - chat_type: {chat_type}, sender_id: {sender_id}, raw_msg: {raw_msg}")
+        logger.info(f"调试参数 - chat_type: {chat_type}, sender_id: {sender_id}, raw_msg: {raw_msg}")
         
         # 确保raw_msg是字符串
         if not isinstance(raw_msg, str):
             raw_msg = str(raw_msg)
         
-        logger.info(f"[MonitorPlugin] 收到请求: {raw_msg}")
-        logger.info(f"[MonitorPlugin] 消息详情 - 类型: {chat_type}, 发送者: {sender_id}, 目标ID: {target_id}")
+        logger.info(f"收到请求: {raw_msg}")
+        logger.info(f"消息详情 - 类型: {chat_type}, 发送者: {sender_id}, 目标ID: {target_id}")
         
         # 消息发送通过 GracyAdapter 适配层（已全局统一）
         
         # 根据不同指令返回不同内容 - 严格匹配命令
         content = ""
         if raw_msg in ["/状态", "/status"]:
-            logger.info("[MonitorPlugin] 处理'状态'指令")
+            logger.info("处理'状态'指令")
             content = get_system_status()
         
         elif raw_msg in ["/健康", "/health"]:
-            logger.info("[MonitorPlugin] 处理'健康'指令")
+            logger.info("处理'健康'指令")
             content = get_health_check()
         
         elif raw_msg in ["/性能", "/performance"]:
-            logger.info("[MonitorPlugin] 处理'性能'指令")
+            logger.info("处理'性能'指令")
             content = get_performance_summary()
         
         elif raw_msg == "/插件状态":
-            logger.info("[MonitorPlugin] 处理'插件状态'指令")
+            logger.info("处理'插件状态'指令")
             content = get_plugins_status()
         
         else:
@@ -72,29 +70,29 @@ async def handle_monitor(*args, **kwargs):
 • /性能 或 /performance - 查看性能统计信息
 • /插件状态 - 查看已加载插件信息"""
         
-        logger.info(f"[MonitorPlugin] 返回内容长度: {len(str(content))} 字符")
-        logger.info(f"[MonitorPlugin] 向用户 {sender_id} 发送响应，类型: {chat_type}")
+        logger.info(f"返回内容长度: {len(str(content))} 字符")
+        logger.info(f"向用户 {sender_id} 发送响应，类型: {chat_type}")
         
         # 尝试直接发送消息
         if content:
-            logger.info("[MonitorPlugin] 发送响应消息")
+            logger.info("发送响应消息")
             try:
                 # 根据chat_type确定正确的发送参数
                 if chat_type == 'group':
                     await gracy_send_msg(target_id, GracyText(text=content), chat_type=chat_type)
                 else:
                     await gracy_send_msg(sender_id, GracyText(text=content), chat_type=chat_type)
-                logger.info(f"[MonitorPlugin] 消息发送成功到 {target_id}，类型: {chat_type}")
+                logger.info(f"消息发送成功到 {target_id}，类型: {chat_type}")
             except Exception as send_err:
-                logger.error(f"[MonitorPlugin] 发送消息失败: {str(send_err)}")
+                logger.error(f"发送消息失败: {str(send_err)}")
         else:
-            logger.error("[MonitorPlugin] 没有可用的消息发送函数")
+            logger.error("没有可用的消息发送函数")
         
         # 记录插件执行成功
-        logger.info(f"[MonitorPlugin] 命令处理完成: {raw_msg}")
+        logger.info(f"命令处理完成: {raw_msg}")
                
     except Exception as e:
-        logger.error(f"[MonitorPlugin] 处理请求时发生异常: {str(e)}", exc_info=True)
+        logger.error(f"处理请求时发生异常: {str(e)}", exc_info=True)
         
         # 确保异常情况下也发送错误消息
         error_msg = "❌ 监控数据获取失败"
@@ -105,9 +103,9 @@ async def handle_monitor(*args, **kwargs):
                 await gracy_send_msg(target_id, GracyText(text=error_msg), chat_type=chat_type)
             else:
                 await gracy_send_msg(sender_id, GracyText(text=error_msg), chat_type=chat_type)
-            logger.info(f"[MonitorPlugin] 已发送错误消息")
+            logger.info(f"已发送错误消息")
         except Exception as send_err:
-            logger.error(f"[MonitorPlugin] 发送错误消息失败: {str(send_err)}")
+            logger.error(f"发送错误消息失败: {str(send_err)}")
         
         # 异常情况下不需要返回值，handler.py不使用返回值
 
@@ -136,7 +134,7 @@ def get_system_status():
         return response
         
     except Exception as e:
-        logger.error(f"[MonitorPlugin] 获取系统状态失败: {str(e)}", exc_info=True)
+        logger.error(f"获取系统状态失败: {str(e)}", exc_info=True)
         return "❌ 获取系统状态信息失败"
 
 def get_health_check():
@@ -159,7 +157,7 @@ def get_health_check():
         return response
         
     except Exception as e:
-        logger.error(f"[MonitorPlugin] 获取健康检查失败: {str(e)}", exc_info=True)
+        logger.error(f"获取健康检查失败: {str(e)}", exc_info=True)
         return "❌ 获取健康检查信息失败"
 
 def get_performance_summary():
@@ -207,7 +205,7 @@ def get_performance_summary():
         return response
         
     except Exception as e:
-        logger.error(f"[MonitorPlugin] 获取性能指标失败: {str(e)}", exc_info=True)
+        logger.error(f"获取性能指标失败: {str(e)}", exc_info=True)
         return "❌ 获取性能指标信息失败"
 
 def get_plugins_status():
@@ -237,7 +235,7 @@ def get_plugins_status():
         return response
         
     except Exception as e:
-        logger.error(f"[MonitorPlugin] 获取插件状态失败: {str(e)}", exc_info=True)
+        logger.error(f"获取插件状态失败: {str(e)}", exc_info=True)
         return "❌ 获取插件状态信息失败"
 
 def get_status_emoji(status):

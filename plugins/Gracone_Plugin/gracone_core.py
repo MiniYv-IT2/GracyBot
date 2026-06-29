@@ -11,14 +11,13 @@ gracone_core.py — Gracone 加载引擎
 import sys
 import os
 import types
-import logging
 import importlib.util
 from pathlib import Path
 
-from graci import Stage, RuntimeRegistry
+from graci import Stage, RuntimeRegistry, get_logger
 from bridge.matcher_bridge import matcher_manager, dispatch_event, inject_into_nonebot
 
-_logger = logging.getLogger("Gracone")
+logger = get_logger("Gracone")
 
 # ── 版本号 ──
 GRACONE_VERSION = "1.0.0"
@@ -49,7 +48,7 @@ def load_disabled_plugins() -> set[str]:
                 data = __import__('json').load(f)
                 return set(data.get("disabled", []))
     except Exception as e:
-        _logger.warning(f"读取禁用列表失败: {e}")
+        logger.warning(f"读取禁用列表失败: {e}")
     return set()
 
 
@@ -76,7 +75,7 @@ def _run_fake_driver_startup():
                             except RuntimeError:
                                 asyncio.get_event_loop().run_until_complete(r)
                 except Exception as e:
-                    _logger.warning(f"FakeDriver on_startup 钩子失败: {e}")
+                    logger.warning(f"FakeDriver on_startup 钩子失败: {e}")
     except ImportError:
         pass
 
@@ -90,7 +89,7 @@ def save_disabled_plugins() -> None:
             json.dump({"disabled": sorted(_disabled_nb_plugins)}, f,
                        ensure_ascii=False, indent=2)
     except Exception as e:
-        _logger.error(f"保存禁用列表失败: {e}")
+        logger.error(f"保存禁用列表失败: {e}")
 
 
 # ════════════════════════════════════════════════════
@@ -184,7 +183,7 @@ def _patch_cchess_modules(module_name: str):
     if game_mod:
         game_mod.select = _fake_select
         game_mod.get_session = lambda: _FakeSess()
-        _logger.info(f"  ── patched game: select → fake")
+        logger.info(f"  ── patched game: select → fake")
 
     # 为 model 的 GameRecord 添加假列描述符
     model_mod = sys.modules.get(f"{module_name}.model")
@@ -196,7 +195,7 @@ def _patch_cchess_modules(module_name: str):
                      'player_black_is_ai', 'player_black_level',
                      'start_fen', 'moves'):
             setattr(model_mod.GameRecord, attr, _FakeCol(attr))
-        _logger.info(f"  ── patched model: GameRecord columns → descriptors")
+        logger.info(f"  ── patched model: GameRecord columns → descriptors")
 
 
 def load_single_plugin(py_file):
@@ -213,9 +212,9 @@ def load_single_plugin(py_file):
             sys.modules[f'nonebot.plugins.{py_file.stem}'] = mod
             spec.loader.exec_module(mod)
             _loaded_nb_plugins.append(py_file.stem)
-            _logger.info(f"已加载 NoneBot 插件: {py_file.stem}")
+            logger.info(f"已加载 NoneBot 插件: {py_file.stem}")
     except Exception as e:
-        _logger.error(f"加载 NoneBot 插件 {py_file.name} 失败: {e}", exc_info=True)
+        logger.error(f"加载 NoneBot 插件 {py_file.name} 失败: {e}", exc_info=True)
 
 
 def load_package_plugin(sub_dir):
@@ -253,7 +252,7 @@ def load_package_plugin(sub_dir):
                     sys.modules[sub_module_name] = sub_mod
                     sub_spec.loader.exec_module(sub_mod)
             except Exception as e:
-                _logger.warning(f"加载子模块 {py_file.name} 时出错: {e}")
+                logger.warning(f"加载子模块 {py_file.name} 时出错: {e}")
 
         # cchess 专用补丁
         if pkg_name == 'cchess':
@@ -267,9 +266,9 @@ def load_package_plugin(sub_dir):
             spec.loader.exec_module(mod)
 
         _loaded_nb_plugins.append(pkg_name)
-        _logger.info(f"已加载 NoneBot 包插件: {pkg_name}")
+        logger.info(f"已加载 NoneBot 包插件: {pkg_name}")
     except Exception as e:
-        _logger.error(f"加载 NoneBot 包插件 {pkg_name} 失败: {e}", exc_info=True)
+        logger.error(f"加载 NoneBot 包插件 {pkg_name} 失败: {e}", exc_info=True)
 
 
 def scan_and_load_nb_plugins():
@@ -282,11 +281,11 @@ def scan_and_load_nb_plugins():
         if py_file.name.startswith("_") or py_file.name == "__init__.py":
             continue
         if py_file.name in skip_files:
-            _logger.info(f"  ⏭️ 跳过测试插件: {py_file.name}")
+            logger.info(f"  ⏭️ 跳过测试插件: {py_file.name}")
             continue
         plugin_name = py_file.stem
         if plugin_name in _disabled_nb_plugins:
-            _logger.info(f"  ⏭️ 已禁用: {plugin_name}")
+            logger.info(f"  ⏭️ 已禁用: {plugin_name}")
             continue
         load_single_plugin(py_file)
 
@@ -299,7 +298,7 @@ def scan_and_load_nb_plugins():
             continue
         pkg_name = sub_dir.name
         if pkg_name in _disabled_nb_plugins:
-            _logger.info(f"  ⏭️ 已禁用: {pkg_name}")
+            logger.info(f"  ⏭️ 已禁用: {pkg_name}")
             continue
         load_package_plugin(sub_dir)
 
@@ -376,11 +375,11 @@ class GraconeStage(Stage):
         try:
             handled = await dispatch_event(event, ctx.adapter_tag)
             if handled:
-                _logger.debug(
+                logger.debug(
                     f"Gracone 已处理: {raw_text[:50]}")
                 return None  # 短路，不触发 ResponseSender
         except Exception as e:
-            _logger.error(f"Gracone 分发异常: {e}", exc_info=True)
+            logger.error(f"Gracone 分发异常: {e}", exc_info=True)
 
         return ctx  # 未处理，继续到 ResponseSender
 
@@ -403,11 +402,11 @@ def _inject_stage_into_runtimes():
                     break
                 stages.insert(i, GraconeStage())
                 count += 1
-                _logger.debug(
+                logger.debug(
                     f"  ── 注入 GraconeStage 到 runtime: {runtime.instance_name}")
                 break
     if count:
-        _logger.info(f"  已注入到 {count} 个 Runtime Pipeline")
+        logger.info(f"  已注入到 {count} 个 Runtime Pipeline")
 
 
 # ════════════════════════════════════════════════════
@@ -419,14 +418,14 @@ def initialize():
     global _gracone_initialized, _disabled_nb_plugins
 
     if _gracone_initialized:
-        _logger.warning("Gracone 已初始化，跳过")
+        logger.warning("Gracone 已初始化，跳过")
         return
 
     inject_into_nonebot()
 
     _disabled_nb_plugins = load_disabled_plugins()
     if _disabled_nb_plugins:
-        _logger.info(f"  已加载禁用列表: {', '.join(sorted(_disabled_nb_plugins))}")
+        logger.info(f"  已加载禁用列表: {', '.join(sorted(_disabled_nb_plugins))}")
 
     _plugin_dir.mkdir(exist_ok=True)
     init_file = _plugin_dir / "__init__.py"
@@ -443,7 +442,7 @@ def initialize():
     plugin_manager.register_on_ready(_inject_stage_into_runtimes)
 
     _gracone_initialized = True
-    _logger.info(
+    logger.info(
         f"Gracone v{GRACONE_VERSION} 初始化完成 — "
         f"已加载 {len(_loaded_nb_plugins)} 个 NoneBot 插件")
-    _logger.info(f"NoneBot 插件: {_loaded_nb_plugins}")
+    logger.info(f"NoneBot 插件: {_loaded_nb_plugins}")

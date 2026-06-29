@@ -27,14 +27,19 @@ class InputValidator:
     """
     
     @staticmethod
+    def is_valid_id(id_str: str) -> bool:
+        """通用 ID 验证：非空字符串即可，适配所有平台"""
+        return bool(id_str and isinstance(id_str, str) and len(id_str) > 0)
+    
+    @staticmethod
     def is_valid_qq(user_id: str) -> bool:
-        """验证用户 ID 格式"""
-        return bool(re.match(r'^[1-9]\d{4,14}$', user_id))
+        """@deprecated: 请使用 is_valid_id，保留向后兼容"""
+        return InputValidator.is_valid_id(user_id)
     
     @staticmethod
     def is_valid_group_id(group_id: str) -> bool:
-        """验证群号格式"""
-        return bool(re.match(r'^[1-9]\d{4,14}$', group_id))
+        """@deprecated: 请使用 is_valid_id，保留向后兼容"""
+        return InputValidator.is_valid_id(group_id)
     
     @staticmethod
     def is_valid_command(cmd: str) -> bool:
@@ -182,16 +187,16 @@ class SecurityManager:
             from core.event import event_bus
             event_bus.subscribe("*", self._event_filter, priority=100)
             self._subscribed = True
-            _logger.debug("[SecurityManager] 已注册到 EventBus（优先级高）")
-        except Exception:
-            pass
+            logger.debug("已注册到 EventBus（优先级高）")
+        except Exception as e:
+            logger.warning(f"EventBus 订阅失败: {e}")
 
     async def _event_filter(self, event) -> None:
         """EventBus 订阅者：黑名单拦截 + 审计日志（懒订阅）"""
         self._ensure_subscribed()
         # 黑名单拦截
         if hasattr(event, 'sender_id') and self.is_blocked(str(event.sender_id)):
-            _logger.info(f"[EventBus] 黑名单拦截用户 {event.sender_id}")
+            logger.info(f"[EventBus] 黑名单拦截用户 {event.sender_id}")
             event.cancel()
             return
         # 审计日志
@@ -230,9 +235,9 @@ class SecurityManager:
         if user_id in self.user_roles:
             return self.user_roles[user_id]
         
-        # 检查是否机器人自身（从配置中获取自己的 ID）
-        self_qq = config_manager.get('self_qq', '')
-        if self_qq and str(user_id) == str(self_qq):
+        # 检查是否机器人自身（从配置中获取自己的 ID，兼容 self_id 和 self_qq）
+        self_id = config_manager.get('self_id', '') or config_manager.get('self_qq', '')
+        if self_id and str(user_id) == str(self_id):
             return UserRole.SELF
         
         # 默认是别人（访客）
@@ -246,7 +251,7 @@ class SecurityManager:
         :return: (是否有权限, 提示信息)
         """
         # 验证输入
-        if not self.validator.is_valid_qq(user_id):
+        if not self.validator.is_valid_id(user_id):
             return False, "无效的用户ID"
         
         # 检查黑名单
@@ -467,7 +472,8 @@ class SecurityManager:
             
             # 验证哈希
             return token_hash == expected_hash
-        except:
+        except Exception as e:
+            logger.warning(f"[安全令牌] 验证异常: {e}")
             return False
             
     def validate_input(self, data: Dict) -> bool:

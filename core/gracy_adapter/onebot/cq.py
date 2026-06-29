@@ -17,6 +17,8 @@ from core.gracy_adapter.message import (
     GracyReply,
     GracyVoice,
     GracyFile,
+    GracyVideo,
+    GracyForward,
 )
 
 # CQ 码正则：[CQ:type,key=val,...]
@@ -52,6 +54,17 @@ def gracy_to_cq(segments: List[GracyMsg]) -> str:
                 parts.append(f"[CQ:file,file=file://{seg.file_path}]")
             elif seg.url:
                 parts.append(f"[CQ:file,url={seg.url}]")
+        elif isinstance(seg, GracyVideo):
+            if seg.file_path:
+                parts.append(f"[CQ:video,file=file://{seg.file_path}]")
+            elif seg.url:
+                parts.append(f"[CQ:video,url={seg.url}]")
+            elif seg.file_data:
+                import base64
+                b64 = base64.b64encode(seg.file_data).decode()
+                parts.append(f"[CQ:video,file=base64://{b64}]")
+        elif isinstance(seg, GracyForward):
+            parts.append(f"[CQ:forward,id={seg.forward_id}]")
         elif isinstance(seg, str):
             # 兼容旧插件直接传字符串的写法
             parts.append(seg)
@@ -122,5 +135,26 @@ def _cq_to_segment(cq_type: str, params: dict) -> GracyMsg | None:
         return GracyVoice(file_path=params.get("file", ""))
     elif cq_type == "file":
         return GracyFile(file_path=params.get("file", ""))
-    # 未知 CQ 类型返回 None，调用方忽略
-    return None
+    elif cq_type == "video":
+        file = params.get("file", "")
+        if file.startswith("file://"):
+            return GracyVideo(file_path=file[7:])
+        elif file.startswith("http"):
+            return GracyVideo(url=file)
+        else:
+            return GracyVideo(url=file)
+    elif cq_type == "forward":
+        return GracyForward(forward_id=params.get("id", ""))
+    # 未知/未实现的 CQ 类型 → 替换为可读文本
+    _CQ_DISPLAY = {
+        "json": "[JSON卡片]",
+        "markdown": "[卡片消息]",
+        "forward": "[合并转发]",
+        "poke": "[戳一戳]",
+        "dice": "[骰子]",
+        "rps": "[猜拳]",
+        "contact": "[推荐好友]",
+        "share": "[链接分享]",
+    }
+    display = _CQ_DISPLAY.get(cq_type, f"[{cq_type}]")
+    return GracyText(text=display)

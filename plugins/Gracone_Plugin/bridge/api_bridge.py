@@ -4,10 +4,9 @@ NoneBot 插件的 handler 接收到的 Bot 参数实际上是 GraconeBot 实例�
 它的 send_msg / call_api 等方法最终调用 gracy_send_msg / gracy_call_api。
 """
 
-import logging
 from typing import Any, Dict, List, Optional
 
-from graci import gracy_send_msg, gracy_call_api
+from graci import gracy_send_msg, gracy_call_api, get_logger
 from graci import IdentityTag
 from graci import GracyText
 
@@ -15,7 +14,7 @@ from bridge.message_translator import nb_to_gracy_segments
 from bridge.event_translator import nb_to_gracy_event
 from context import GraconeContext
 
-_logger = logging.getLogger("Gracone.API")
+logger = get_logger("Gracone.API")
 
 # 当前消息上下文的 Bot 实例（NoneBot 插件通常通过依赖注入获取）
 _current_bot: Optional['GraconeBot'] = None
@@ -90,7 +89,7 @@ class GraconeBot:
         Returns:
             API 响应或 None
         """
-        _logger.debug(f"call_api: {api} params={params}")
+        logger.debug(f"call_api: {api} params={params}")
         self._call_api_history.append({"api": api, "params": params})
         
         if api == "send_msg":

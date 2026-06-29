@@ -5,14 +5,15 @@ import os
 import json
 import time
 import hashlib
-import logging
 from typing import Optional, Any
 
 import httpx
 
+from graci import get_logger
+
 from ..config import CACHE_DIR, CACHE_EXPIRE, BASE_URL
 
-_logger = logging.getLogger("Gracy.NTEGuide.fetcher")
+logger = get_logger("NTEGuide.fetcher")
 
 # 缓存键前缀
 _PREFIX = "nte_"
@@ -38,7 +39,7 @@ def _get_cache(key: str, max_age: int) -> Optional[Any]:
         if age < max_age:
             return data.get("data")
     except (json.JSONDecodeError, OSError) as e:
-        _logger.warning(f"缓存读取失败 {key}: {e}")
+        logger.warning(f"缓存读取失败 {key}: {e}")
     return None
 
 
@@ -50,7 +51,7 @@ def _set_cache(key: str, data: Any):
         with open(path, "w", encoding="utf-8") as f:
             json.dump({"ts": time.time(), "data": data}, f, ensure_ascii=False)
     except OSError as e:
-        _logger.warning(f"缓存写入失败 {key}: {e}")
+        logger.warning(f"缓存写入失败 {key}: {e}")
 
 
 async def fetch_url(url: str, cache_type: Optional[str] = None) -> Optional[str]:
@@ -60,7 +61,7 @@ async def fetch_url(url: str, cache_type: Optional[str] = None) -> Optional[str]
         max_age = CACHE_EXPIRE[cache_type]
         cached = _get_cache(key, max_age)
         if cached is not None:
-            _logger.debug(f"缓存命中: {url[:60]}")
+            logger.debug(f"缓存命中: {url[:60]}")
             return cached
 
     try:
@@ -73,15 +74,15 @@ async def fetch_url(url: str, cache_type: Optional[str] = None) -> Optional[str]
             key = _cache_key(url)
             _set_cache(key, html)
 
-        _logger.debug(f"请求成功: {url[:60]} ({len(html)} bytes)")
+        logger.debug(f"请求成功: {url[:60]} ({len(html)} bytes)")
         return html
 
     except httpx.HTTPStatusError as e:
-        _logger.error(f"HTTP 错误 {e.response.status_code}: {url[:60]}")
+        logger.error(f"HTTP 错误 {e.response.status_code}: {url[:60]}")
     except httpx.TimeoutException:
-        _logger.error(f"请求超时: {url[:60]}")
+        logger.error(f"请求超时: {url[:60]}")
     except Exception as e:
-        _logger.error(f"请求失败: {url[:60]} - {e}")
+        logger.error(f"请求失败: {url[:60]} - {e}")
     return None
 
 
@@ -93,7 +94,7 @@ async def fetch_image(url: str) -> Optional[bytes]:
             r.raise_for_status()
             return r.content
     except Exception as e:
-        _logger.warning(f"图片下载失败: {url[:60]} - {e}")
+        logger.warning(f"图片下载失败: {url[:60]} - {e}")
     return None
 
 

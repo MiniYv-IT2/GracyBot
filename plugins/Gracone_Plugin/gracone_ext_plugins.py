@@ -11,6 +11,8 @@ import sys
 import types
 from typing import Any, Optional
 
+from graci import get_logger
+
 
 def _reg(name: str) -> types.ModuleType:
     """注册一个虚拟模块到 sys.modules"""
@@ -293,8 +295,7 @@ class Command:
                         await gracy_send_msg(target, GracyText(text=str(result)),
                                              chat_type=chat_type, tag=tag)
             except Exception as e:
-                import logging
-                logging.getLogger("Gracone").error(f"Command.build handler 异常: {e}", exc_info=True)
+                get_logger("Gracone").error(f"Command.build handler 异常: {e}", exc_info=True)
 
         matcher._handlers.append(handler)
         return matcher

@@ -144,12 +144,23 @@ class GracyOneBot(GracyAdapter):
         # 解析 CQ 码 → GracyMsg 列表
         segments = cq_to_gracy(raw_message)
 
-        # 提取纯文本
+        # 提取纯文本（非文本段转为可读标签）
         raw_text = ""
         for seg in segments:
-            from core.gracy_adapter.message import GracyText
+            from core.gracy_adapter.message import GracyText, GracyImage, GracyAt, GracyReply, GracyVoice, GracyFile
             if isinstance(seg, GracyText):
                 raw_text += seg.text
+            elif isinstance(seg, GracyImage):
+                raw_text += "[图片]"
+            elif isinstance(seg, GracyAt):
+                raw_text += f"[@{seg.target_id}]"
+            elif isinstance(seg, GracyReply):
+                raw_text += "[回复]"
+            elif isinstance(seg, GracyVoice):
+                raw_text += "[语音]"
+            elif isinstance(seg, GracyFile):
+                name = seg.file_path.split("/")[-1].split("\\")[-1] if seg.file_path else ""
+                raw_text += f"[文件:{name}]" if name else "[文件]"
 
         # 判断是否 @了机器人
         is_at_bot = False

@@ -1,9 +1,8 @@
 import os
 import sys
 import subprocess
-import logging
 
-logger = logging.getLogger("Gracy.Screenshot")
+from graci import get_logger; logger = get_logger("Screenshot")
 PLUGIN_DIR = os.path.dirname(os.path.abspath(__file__))
 STATE_FILE = os.path.join(PLUGIN_DIR, ".dep_checked")
 
@@ -20,7 +19,7 @@ def _check_deps():
     except ImportError:
         missing.append("Pillow")
     if missing:
-        logger.info("[插件执行] [Screenshot] Installing dependencies: %s", ", ".join(missing))
+        logger.info("Installing dependencies: %s", ", ".join(missing))
         for pkg in missing:
             subprocess.run(
                 [sys.executable, "-m", "pip", "install", pkg],
@@ -28,7 +27,7 @@ def _check_deps():
                 stderr=subprocess.DEVNULL,
                 timeout=60
             )
-        logger.info("[插件执行] [Screenshot] Dependencies installed successfully")
+        logger.info("Dependencies installed successfully")
     with open(STATE_FILE, "w") as f:
         f.write("1")
 

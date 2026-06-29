@@ -32,8 +32,10 @@ _ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.
 _RES = os.path.join(_ROOT, "style", "resource")
 
 sys.path.append(_ROOT)
-from graci import logger
+from graci import get_logger
 from graci import BOT_VERSION
+
+logger = get_logger("Xiaoyu.draw")
 
 
 class XiaoyuHelpDrawer:
@@ -89,7 +91,7 @@ class XiaoyuHelpDrawer:
             self.f_desc    = ImageFont.truetype(self.FONT_PATH, 13)
             self.f_footer  = ImageFont.truetype(self.FONT_PATH, 12)
         except Exception as e:
-            logger.error(f"[小禹帮助] 字体加载失败: {e}")
+            logger.error(f"字体加载失败: {e}")
             raise
 
     def _load_logo(self):
@@ -107,7 +109,7 @@ class XiaoyuHelpDrawer:
             nw = int(self.LOGO_H * ow / oh)
             self.logo = logo.resize((nw, self.LOGO_H), Image.Resampling.LANCZOS)
         except Exception as e:
-            logger.warning(f"[小禹帮助] Logo 加载失败: {e}")
+            logger.warning(f"Logo 加载失败: {e}")
             self.logo = None
 
     # ═══════════════ 工具 ═══════════════
@@ -168,7 +170,7 @@ class XiaoyuHelpDrawer:
                         result.setdefault("小禹插件", []).append(entry)
                     break
         except Exception as e:
-            logger.error(f"[小禹帮助] 读取 PLUGIN_REGISTRY 失败: {e}")
+            logger.error(f"读取 PLUGIN_REGISTRY 失败: {e}")
         return result
 
     @staticmethod

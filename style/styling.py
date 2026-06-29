@@ -31,31 +31,47 @@ class StylingManager:
             'ip_address': 'IP地址', 'group_name': '群聊'
         }
         
-        # 上下文值映射
-        self.context_value_mapping = {
-            'private': '私聊', 'group': '群聊', 'friend': '好友', 'group_upload': '群文件上传',
-            'group_admin': '群管理变更', 'group_ban': '群禁言', 'friend_add': '好友添加',
+        # 通用上下文值映射（所有平台共用）
+        self._context_values_common = {
+            'private': '私聊', 'group': '群聊', 'friend': '好友',
+            'approve': '同意', 'reject': '拒绝', 'set': '设置', 'unset': '取消设置',
+            'ban': '禁言', 'lift_ban': '解除禁言', 'leave': '离开', 'kick': '踢出',
+            'admin': '管理员', 'member': '成员', 'owner': '群主', 'administrator': '管理员',
+            'guest': '访客', 'user': '用户', 'true': '成功', 'false': '失败', 'True': '成功', 'False': '失败'
+        }
+        
+        # OneBot 特定上下文值映射
+        self._context_values_onebot = {
+            'group_upload': '群文件上传', 'group_admin': '群管理变更',
+            'group_ban': '群禁言', 'friend_add': '好友添加',
             'group_recall': '群消息撤回', 'friend_recall': '好友消息撤回',
             'poke': '戳一戳', 'lucky_king': '运气王', 'honor': '群荣誉变更',
             'group_card': '群名片变更', 'offline_file': '离线文件', 'client_status': '客户端状态',
             'essence': '精华消息', 'system': '系统消息', 'request': '请求事件',
             'notice': '通知事件', 'meta_event': '元事件', 'message': '消息事件',
-            'approve': '同意', 'reject': '拒绝', 'set': '设置', 'unset': '取消设置',
-            'ban': '禁言', 'lift_ban': '解除禁言', 'leave': '离开', 'kick': '踢出',
-            'admin': '管理员', 'member': '成员', 'owner': '群主', 'administrator': '管理员',
-            'basic_query': '基础查询', 'use_plugins': '使用插件', 'guest': '访客',
-            'user': '用户', 'true': '成功', 'false': '失败', 'True': '成功', 'False': '失败'
+            'basic_query': '基础查询', 'use_plugins': '使用插件'
         }
         
-        # 消息关键词映射
-        self.message_mapping = {
+        # 向后兼容：合并映射（优先通用映射）
+        self.context_value_mapping = {**self._context_values_onebot, **self._context_values_common}
+        
+        # 通用消息关键词映射
+        self._message_mapping_common = {
             '审计日志': '审计日志', '非消息请求，已正常处理': '非消息请求已处理',
-            '请求开始处理': '请求开始处理', '成功发送private消息': '私聊消息发送成功',
-            '成功发送group消息': '群聊消息发送成功', '收到消息': '收到消息',
+            '请求开始处理': '请求开始处理', '收到消息': '收到消息',
             '插件加载完成': '插件加载完成', '插件初始化完成': '插件初始化完成',
             '日志系统初始化完成': '日志系统初始化完成', 'Web面板自启': 'Web面板自动启动',
             '无日志消息': '无日志消息',
         }
+        
+        # OneBot 特定消息关键词映射
+        self._message_mapping_onebot = {
+            '成功发送private消息': '私聊消息发送成功',
+            '成功发送group消息': '群聊消息发送成功',
+        }
+        
+        # 向后兼容：合并映射
+        self.message_mapping = {**self._message_mapping_onebot, **self._message_mapping_common}
         
         # 消息类型格式化映射
         self.message_type_formatting = {
@@ -67,14 +83,6 @@ class StylingManager:
             '[群聊消息]': '[群聊消息]',
         }
     
-    def _sanitize_cq_codes(self, text: str) -> str:
-        """简化CQ码显示——委托到 OneBot 适配器处理"""
-        try:
-            from core.gracy_adapter.onebot.sanitize import sanitize
-            return sanitize(text)
-        except ImportError:
-            return text
-
     def format_context_to_chinese(self, context: Dict[str, Any]) -> str:
         """格式化上下文字典"""
         if not context:
@@ -103,20 +111,19 @@ class StylingManager:
             if key == 'success':
                 chinese_value = '成功' if str(value).lower() in ['true', '成功'] else '失败'
             elif key == 'chat_type':
-                chinese_value = self.context_value_mapping.get(str(value), value)
+                chinese_value = self._translate_value(value)
             elif key == 'action':
                 chinese_value = '发送消息' if value == 'message_sent' else '接收消息' if value == 'message_received' else value
             elif key in ['content_preview'] and isinstance(value, str):
-                value = self._sanitize_cq_codes(value)
                 chinese_value = value[:47] + '...' if len(value) > 50 else value
             elif key in ['raw_text'] and isinstance(value, str):
-                chinese_value = self._sanitize_cq_codes(value)
+                chinese_value = value
             elif key in ['sender_id', 'target_id', 'self_id', 'message_id']:
                 chinese_value = self._encrypt_user_id(value)
             elif key == 'permission':
-                chinese_value = self.context_value_mapping.get(str(value), value)
+                chinese_value = self._translate_value(value)
             else:
-                chinese_value = self.context_value_mapping.get(str(value), value)
+                chinese_value = self._translate_value(value)
             
             chinese_parts.append(f"{chinese_key}: {chinese_value}")
         
@@ -180,14 +187,31 @@ class StylingManager:
             if old_format in message:
                 message = message.replace(old_format, new_format)
         
-        # 替换其他关键词
-        for eng, chn in self.message_mapping.items():
+        # 先替换 OneBot 特定关键词（更具体的模式优先）
+        for eng, chn in self._message_mapping_onebot.items():
+            if eng in message:
+                message = message.replace(eng, chn)
+        
+        # 再替换通用关键词
+        for eng, chn in self._message_mapping_common.items():
             if eng in message:
                 message = message.replace(eng, chn)
         
         return message
     
 
+    
+    def _translate_value(self, value: Any) -> str:
+        """翻译值：先查通用映射，再查 OneBot 映射"""
+        str_value = str(value)
+        # 先查通用映射
+        if str_value in self._context_values_common:
+            return self._context_values_common[str_value]
+        # 再查 OneBot 映射
+        if str_value in self._context_values_onebot:
+            return self._context_values_onebot[str_value]
+        # 都没有匹配，返回原值
+        return value
     
     def _encrypt_user_id(self, user_id: Union[int, str]) -> str:
         """加密用户ID"""

@@ -4,14 +4,13 @@ import sys
 import platform
 import secrets
 import aiohttp
-import logging
 from typing import Dict, Tuple, Optional
 from PIL import Image, ImageDraw, ImageFont, ImageFilter
 import numpy as np
 import psutil
 import time
 
-logger = logging.getLogger("Gracy.SysInfo.draw")
+from graci import get_logger; logger = get_logger("SysInfo.draw")
 
 # 路径配置
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
@@ -217,7 +216,7 @@ class SysInfoDrawer:
         text_y = card_y + 20
         line_height = 22
         
-        # 第一行：QQ昵称
+        # 第一行：昵称
         nickname_text = f"昵称：{self.robot_info['nickname']}"
         draw.text((text_x, text_y), nickname_text, font=self.font_subtitle, fill=TITLE_COLOR)
         
@@ -225,7 +224,7 @@ class SysInfoDrawer:
         info_text = f"好友：{self.robot_info['friend_count']} | 群聊：{self.robot_info['group_count']}"
         draw.text((text_x, text_y + line_height), info_text, font=self.font_text, fill=TEXT_COLOR)
         
-        # 第三行：napcat版本
+        # 第三行：协议版本
         version_text = f"协议：{self.robot_info['napcat_version']}"
         draw.text((text_x, text_y + line_height * 2), version_text, font=self.font_text, fill=TEXT_COLOR)
 
@@ -387,7 +386,7 @@ class SysInfoDrawer:
         _img_height = max(IMG_HEIGHT, 1100 + _disk_count * 30)
         # 尝试加载随机背景图
         background = self._load_random_background()
-        logger.warning(f"[SysInfo⏱] draw: 背景加载={time.time()-_t0:.2f}s")
+        logger.warning(f"draw: 背景加载={time.time()-_t0:.2f}s")
         
         # 创建图片（背景保持清晰，毛玻璃效果由面板/圆圈局部实现）
         if background:
@@ -395,7 +394,7 @@ class SysInfoDrawer:
             bg = background.resize((IMG_WIDTH, _img_height), Image.Resampling.LANCZOS)
             img = bg.convert("RGBA")
             self.original_bg = bg
-            logger.warning(f"[SysInfo⏱] draw: 背景resize={time.time()-_t1:.2f}s")
+            logger.warning(f"draw: 背景resize={time.time()-_t1:.2f}s")
         else:
             img = Image.new("RGBA", (IMG_WIDTH, _img_height), (*BG_COLOR, 255))
             self.original_bg = None
@@ -418,7 +417,7 @@ class SysInfoDrawer:
         # 绘制机器人信息卡片
         _t_card = time.time()
         await self._draw_robot_info_card(draw, img)
-        logger.warning(f"[SysInfo⏱] draw: 信息卡={time.time()-_t_card:.2f}s")
+        logger.warning(f"draw: 信息卡={time.time()-_t_card:.2f}s")
 
         # 解析进度数据
         progress_data, value_data = self._parse_progress_data()
@@ -471,7 +470,7 @@ class SysInfoDrawer:
             text_x + CARD_WIDTH + 15, text_start_y + text_area_height,
             radius=18, alpha=165
         )
-        logger.warning(f"[SysInfo⏱] draw: 毛玻璃面板={time.time()-_t2:.2f}s")
+        logger.warning(f"draw: 毛玻璃面板={time.time()-_t2:.2f}s")
 
         # 系统完整信息
         os_full = self.sys_info.get("系统版本", "未知系统")
@@ -587,5 +586,5 @@ class SysInfoDrawer:
         _t9 = time.time()
         img_rgb = img.convert("RGB")
         img_rgb.save(OUTPUT_PATH, format="PNG")
-        logger.warning(f"[SysInfo⏱] draw: 保存={time.time()-_t9:.2f}s")
+        logger.warning(f"draw: 保存={time.time()-_t9:.2f}s")
         return OUTPUT_PATH

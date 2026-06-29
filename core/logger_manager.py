@@ -229,6 +229,10 @@ class LoggerManager:
             root_logger.addHandler(self._create_file_handler('gracybot.log', logging.DEBUG, structured, 7, True))
             root_logger.addHandler(self._create_file_handler('gracybot_error.log', logging.ERROR, structured, 14, True))
 
+            for silenced in ("launart", "aiohttp.access", "aiohttp.client", "aiohttp.internal"):
+                logging.getLogger(silenced).setLevel(logging.WARNING)
+                logging.getLogger(silenced).propagate = False
+
             # HTTP 日志器
             http_logger = self.get_logger('GracyBot-HTTP')
             for h in http_logger.handlers[:]:

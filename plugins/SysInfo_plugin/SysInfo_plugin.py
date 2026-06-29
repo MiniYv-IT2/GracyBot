@@ -1,7 +1,6 @@
 ﻿import subprocess
 import platform
 import time
-import logging
 import asyncio
 from typing import Dict
 import json
@@ -15,12 +14,12 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 from graci import (
     ROBOT_START_TIME, BOT_VERSION, MASTER_ID, LOG_ENCODING,
-    get_current_robot_id,
+    get_current_robot_id, get_logger,
 )
 from graci import gracy_send_msg
 from graci import GracyImage, GracyText
 from graci import sanitize_log
-logger = logging.getLogger("Gracy.SysInfo")
+logger = get_logger("SysInfo")
 
 CACHE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "cache")
 
@@ -308,7 +307,7 @@ async def _get_robot_info() -> Dict:
         if platform_info.get("user_id"):
             robot_info["qq"] = str(platform_info["user_id"])
     except Exception as e:
-        logger.error(f"[SysInfo] 获取机器人/好友/群信息失败: {type(e).__name__}: {e}")
+        logger.error(f"获取机器人/好友/群信息失败: {type(e).__name__}: {e}")
     try:
         from graci import plugin_manager
         robot_info["plugin_count"] = len(plugin_manager.registry)
@@ -331,8 +330,8 @@ async def _get_robot_info() -> Dict:
         except Exception:
             pass
 
-    if robot_info["qq"] != "未知" and not robot_info["avatar_url"]:
-        robot_info["avatar_url"] = f"https://q1.qlogo.cn/g?b=qq&nk={robot_info['qq']}&s=640"
+    if platform_info.get("avatar_url"):
+        robot_info["avatar_url"] = platform_info["avatar_url"]
 
     return robot_info
 
@@ -475,7 +474,7 @@ async def get_system_info() -> Dict:
     net_info_task = asyncio.to_thread(_get_network_info)
     shell_task = _get_shell_terminal()
     
-    # robot_info 可能因 NapCat API 超时阻塞 → 用 wait_for 限制时间
+    # robot_info 可能因平台 API 超时阻塞 → 用 wait_for 限制时间
     robot_task = asyncio.wait_for(_get_robot_info(), timeout=3.0)
     
     cpu_usage, gpu_info, io_stats, network_info, shell_terminal = await asyncio.gather(
@@ -488,7 +487,8 @@ async def get_system_info() -> Dict:
                       "platform": "OneBot", "protocol_version": None, "nickname": None}
     
     t_done = time.time()
-    logger.warning(f"[SysInfo⏱] total={t_done - t0:.1f}s gather={t_done - t_extra:.1f}s robot={robot_info.get('qq','?')} friend={robot_info.get('friend_count')} group={robot_info.get('group_count')}")
+    logger.warning(f"⏱ total={t_done - t0:.1f}s gather={t_done - t_extra:.1f}s robot={robot_info.get('qq','?')} friend={robot_info.get('friend_count')} group={robot_info.get('group_count')}")
+    logger.debug(f"robot_info: qq={robot_info.get('qq')} nickname={robot_info.get('nickname')} avatar={robot_info.get('avatar_url')} friend={robot_info.get('friend_count')} group={robot_info.get('group_count')} platform={robot_info.get('platform')}")
     
     # 返回完整信息字典
     return {
@@ -531,11 +531,11 @@ async def handle_status_cmd(target: str, chat_type: str):
         drawer = SysInfoDrawer(info)
         img_path = await drawer.draw()
         t_send = time.time()
-        logger.warning(f"[SysInfo⏱] 绘图={t_send - t_draw:.1f}s")
+        logger.warning(f"⏱ 绘图={t_send - t_draw:.1f}s")
         # 图片消息（通过 GracyAdapter 适配层发送）
         if await gracy_send_msg(target, GracyImage(file_path=img_path), chat_type=chat_type):
             t_end = time.time()
-            logger.warning(f"[SysInfo⏱] 发送={t_end - t_send:.1f}s | 总={t_end - t_start:.1f}s")
+            logger.warning(f"⏱ 发送={t_end - t_send:.1f}s | 总={t_end - t_start:.1f}s")
             logger.info(sanitize_log(f"✅ 发送系统状态图片到{target}"))
         else:
             logger.error(sanitize_log(f"❌ 发送系统状态图片失败，目标：{target}"))

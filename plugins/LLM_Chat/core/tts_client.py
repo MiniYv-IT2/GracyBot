@@ -3,11 +3,11 @@ import os
 import re
 import wave
 import asyncio
-import logging
 from pathlib import Path
 from typing import Optional
+from graci import get_logger
 
-logger = logging.getLogger("Gracy.LLM_Chat.TTS")
+logger = get_logger("LLM_Chat.TTS")
 
 
 # ── Emoji 正则（精确范围，不误伤中文） ──

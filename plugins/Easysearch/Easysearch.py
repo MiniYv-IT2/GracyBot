@@ -1,11 +1,9 @@
-﻿import logging
-from graci import gracy_send_msg
-from graci import GracyImage, GracyText
+﻿from graci import get_logger, gracy_send_msg, GracyImage, GracyText
 
 from .main import do_search, do_browse
 from .core.draw import draw_error
 
-logger = logging.getLogger("Gracy.Easysearch")
+logger = get_logger("Easysearch")
 
 ENGINE_ALIASES = {
     "/搜索": None, "搜索": None,

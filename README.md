@@ -152,7 +152,6 @@ GracyBot_V1.9.54/
 │
 ├── core/                       # 核心框架
 │   ├── main.py                 # Quart 应用 & 启动流程
-│   ├── handler.py              # 消息处理 & 指令分发
 │   ├── plugin_manager.py       # 插件扫描/加载/注册/匹配
 │   ├── config.py               # 配置读取
 │   ├── config_manager.py       # 集中化配置管理
@@ -269,7 +268,7 @@ async def handle_my_plugin(ctx):
 插件内需要获取当前 QQ 号或主人 QQ 时，使用以下 API 代替全局 `import`：
 
 ```python
-from core.config import get_current_robot_id, get_current_master_id
+from graci import get_current_robot_id, get_current_master_id
 
 # 获取当前消息来源的机器人 QQ（多账号时自动适配）
 qq = get_current_robot_id()
@@ -320,7 +319,7 @@ def handle_my_plugin(plugin_manager, send_msg, data, sender_id, chat_type, targe
 - **后端**: Python 3.11+ / Quart / Hypercorn
 - **前端（GracyUI）**: React / TypeScript / Vite / TailwindCSS
 - **协议适配层（GracyAdapter）**: 抽象通用接口，已实现 OneBot v11（NapCat）+ QQ 官方个人机器人 API v2
-- **依赖**: Quart、requests、psutil、Pillow、py-cpuinfo、rarfile、aiohttp
+- **依赖**: Quart、aiohttp、psutil、Pillow、py-cpuinfo、rarfile
 
 > GracyAdapter 采用平台无关设计，OneBot 和 QQ 官方 API 是已实现的适配器。后续将陆续接入 Telegram Bot API、Discord、微信等更多平台，扩展至多端机器人生态。
 

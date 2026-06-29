@@ -1,9 +1,9 @@
-import logging
 from typing import Optional
 
+from graci import get_logger
 from .api_handler import load_config
 
-_logger = logging.getLogger("Gracy.LLMChat.web_search")
+logger = get_logger("LLMChat.web_search")
 
 _client = None
 
@@ -23,7 +23,7 @@ def _get_client():
 def search_web(query: str, max_results: int = 5) -> Optional[str]:
     try:
         client = _get_client()
-        _logger.info(f"[联网] 搜索: {query}")
+        logger.info(f"[联网] 搜索: {query}")
         result = client.search(query, max_results=max_results)
         results = result.get("results", [])
         if not results:
@@ -41,14 +41,14 @@ def search_web(query: str, max_results: int = 5) -> Optional[str]:
             lines.append("")
         return "\n".join(lines)
     except Exception as e:
-        _logger.error(f"[联网] 搜索失败: {e}", exc_info=True)
+        logger.error(f"[联网] 搜索失败: {e}", exc_info=True)
         return f"❌ 联网搜索失败: {e}"
 
 
 def extract_urls(urls: list[str]) -> Optional[str]:
     try:
         client = _get_client()
-        _logger.info(f"[联网] 提取页面: {urls}")
+        logger.info(f"[联网] 提取页面: {urls}")
         extracted = client.extract(urls=urls)
         results = extracted.get("results", [])
         if not results:
@@ -66,5 +66,5 @@ def extract_urls(urls: list[str]) -> Optional[str]:
             lines.append("")
         return "\n".join(lines)
     except Exception as e:
-        _logger.error(f"[联网] 提取失败: {e}", exc_info=True)
+        logger.error(f"[联网] 提取失败: {e}", exc_info=True)
         return f"❌ 页面提取失败: {e}"

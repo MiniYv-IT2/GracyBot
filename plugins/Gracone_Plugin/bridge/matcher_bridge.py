@@ -5,11 +5,10 @@
 """
 
 import inspect
-import logging
 import re
 from typing import Any, Callable, Dict, List, Optional, Pattern, Set, Tuple, Union
 
-from graci import gracy_send_msg
+from graci import gracy_send_msg, get_logger
 from graci import GracyText
 
 from gracone_nonebot import (
@@ -21,7 +20,7 @@ from bridge.event_translator import gracy_to_nb_event
 from bridge.message_translator import nb_to_gracy_segments
 from bridge.api_bridge import create_bot_for_event
 
-_logger = logging.getLogger("Gracone.Matcher")
+logger = get_logger("Gracone.Matcher")
 
 
 class GraconeMatcher:
@@ -147,7 +146,7 @@ class GraconeMatcher:
         """
         ctx = GraconeContext.get()
         if ctx is None:
-            _logger.warning("GraconeContext 不可用，无法发送")
+            logger.warning("GraconeContext 不可用，无法发送")
             return
         
         await _send_via_context(ctx, message)
@@ -257,7 +256,7 @@ class GraconeMatcher:
                 try:
                     result = sub()
                     if not result:
-                        _logger.debug(f"  callable 规则 {sub.__name__} 返回 False")
+                        logger.debug(f"  callable 规则 {sub.__name__} 返回 False")
                         return False
                 except TypeError:
                     # 有参规则函数（依赖注入）— 跳过，由 handler 自行校验
@@ -326,7 +325,7 @@ class MatcherManager:
     def register(self, matcher: GraconeMatcher):
         """注册一个 matcher"""
         self._matchers.append(matcher)
-        _logger.debug(f"注册 Matcher: {matcher}")
+        logger.debug(f"注册 Matcher: {matcher}")
     
     def get_matchers(self) -> List[GraconeMatcher]:
         """获取所有注册的 matcher"""
@@ -354,7 +353,7 @@ class MatcherManager:
                           if getattr(m, '_plugin_name', None) != plugin_name]
         removed = before - len(self._matchers)
         if removed:
-            _logger.info(f"  ── 已移除 {removed} 个 {plugin_name} matcher")
+            logger.info(f"  ── 已移除 {removed} 个 {plugin_name} matcher")
 
 
 # 全局单例
@@ -634,7 +633,7 @@ async def dispatch_event(gracy_event, adapter_tag=None) -> bool:
         if not handlers and hasattr(matcher, '_parent') and matcher._parent:
             handlers = matcher._parent._handlers
         if not handlers:
-            _logger.debug(f"  matcher {matcher} 无 handlers，跳过")
+            logger.debug(f"  matcher {matcher} 无 handlers，跳过")
             continue
         
         # 创建 GraconeContext（必须在 callable 规则评估前）
@@ -653,7 +652,7 @@ async def dispatch_event(gracy_event, adapter_tag=None) -> bool:
         with ctx:
             # 重新评估 callable 规则（函数如 game_not_running 等）
             if not matcher.evaluate_callable_rules(matcher.rule):
-                _logger.debug(f"  matcher {matcher} callable 规则不通过，跳过")
+                logger.debug(f"  matcher {matcher} callable 规则不通过，跳过")
                 continue
             
             try:
@@ -670,15 +669,15 @@ async def dispatch_event(gracy_event, adapter_tag=None) -> bool:
                     except FinishedException:
                         raise  # 重新抛出，让外层捕获
                     except StopPropagation:
-                        _logger.debug(f"Matcher {matcher} 停止传播")
+                        logger.debug(f"Matcher {matcher} 停止传播")
                         break
                     except PausedException:
-                        _logger.debug(f"Matcher {matcher} pause() 调用")
+                        logger.debug(f"Matcher {matcher} pause() 调用")
                         break
             except FinishedException:
                 pass
             except Exception as e:
-                _logger.error(f"Handler 执行出错: {e}", exc_info=True)
+                logger.error(f"Handler 执行出错: {e}", exc_info=True)
         
         # 如果 matcher 设置了 block，不再继续
         if matcher.block:
@@ -703,4 +702,4 @@ def inject_into_nonebot():
     nb.on_message = on_message
     nb.on_notice = on_notice
     nb.on_request = on_request
-    _logger.info("已注入 NoneBot 模块的真实实现")
+    logger.info("已注入 NoneBot 模块的真实实现")

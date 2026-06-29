@@ -1,8 +1,6 @@
-﻿import logging
-from typing import Dict, Optional
+﻿from typing import Dict, Optional
 
-
-logger = logging.getLogger("Gracy.SysInfo.napcat")
+from graci import get_logger; logger = get_logger("SysInfo.napcat")
 
 
 class NapcatAPI:

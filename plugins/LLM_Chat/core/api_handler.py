@@ -1,10 +1,9 @@
 ﻿import json
 import os
-import logging
 from openai import AsyncOpenAI
-from graci import plugin_manager
+from graci import plugin_manager, get_logger
 
-logger = logging.getLogger("Gracy.LLMChat")
+logger = get_logger("LLMChat")
 
 
 def load_config():

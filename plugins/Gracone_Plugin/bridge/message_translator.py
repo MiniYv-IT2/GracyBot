@@ -2,10 +2,7 @@
 
 from typing import Any, List, Optional, Union
 
-from graci import GracyText, GracyImage, GracyVoice
-from core.gracy_adapter.message import (
-    GracyMsg, GracyAt, GracyReply, GracyFile,
-)
+from graci import GracyText, GracyImage, GracyVoice, GracyMsg, GracyAt, GracyReply, GracyFile
 
 
 def gracy_to_nb_segment(msg: GracyMsg) -> Any:

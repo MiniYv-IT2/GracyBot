@@ -257,9 +257,20 @@ class GracyOneBotWS(GracyAdapter):
 
         raw_text = ""
         for seg in segments:
-            from core.gracy_adapter.message import GracyText
+            from core.gracy_adapter.message import GracyText, GracyImage, GracyAt, GracyReply, GracyVoice, GracyFile
             if isinstance(seg, GracyText):
                 raw_text += seg.text
+            elif isinstance(seg, GracyImage):
+                raw_text += "[图片]"
+            elif isinstance(seg, GracyAt):
+                raw_text += f"[@{seg.target_id}]"
+            elif isinstance(seg, GracyReply):
+                raw_text += "[回复]"
+            elif isinstance(seg, GracyVoice):
+                raw_text += "[语音]"
+            elif isinstance(seg, GracyFile):
+                name = seg.file_path.split("/")[-1].split("\\")[-1] if seg.file_path else ""
+                raw_text += f"[文件:{name}]" if name else "[文件]"
 
         is_at_bot = False
         if chat_type == "group" and self._robot_id:

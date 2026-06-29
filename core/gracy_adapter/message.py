@@ -52,8 +52,23 @@ class GracyFile:
     url: str = ""
 
 
+@dataclass
+class GracyVideo:
+    """视频消息段"""
+    file_path: str = ""
+    url: str = ""
+    file_data: bytes = field(default_factory=bytes)
+
+
+@dataclass
+class GracyForward:
+    """合并转发消息段"""
+    forward_id: str = ""
+    title: str = ""
+
+
 # 联合类型：列表中每一元素为上述之一
-GracyMsg = Union[GracyText, GracyAt, GracyImage, GracyReply, GracyVoice, GracyFile]
+GracyMsg = Union[GracyText, GracyAt, GracyImage, GracyReply, GracyVoice, GracyFile, GracyVideo, GracyForward]
 
 
 def gracy_text(text: str) -> GracyText:

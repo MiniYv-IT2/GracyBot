@@ -8,17 +8,14 @@ import re
 import json
 import time
 import threading
-import logging
 from datetime import datetime
 from typing import Tuple, List, Optional
 
-from graci import get_current_master_id
-from graci import logger
-from graci import gracy_send_msg
-from graci import gracy_call_api
-from graci import GracyImage, GracyText
+from graci import get_current_master_id, get_logger, gracy_send_msg, gracy_call_api, GracyImage, GracyText
 from .core.draw import XiaoyuHelpDrawer
 import asyncio
+
+logger = get_logger("Xiaoyu")
 
 # 帮助图绘制器（模块级单例）
 _xiaoyu_drawer = None
@@ -115,7 +112,7 @@ def _update_config_json(key: str, value: str) -> bool:
         plugin_manager.set_plugin_config("Xiaoyu_plugin", key, value)
         return True
     except Exception as e:
-        logger.error(f"[小禹插件] 更新配置失败: {str(e)}")
+        logger.error(f"更新配置失败: {str(e)}")
         return False
 
 
@@ -132,7 +129,7 @@ async def handle_xiaoyu(plugin_manager, gracy_send_msg, data, sender_id, chat_ty
 
     # ── 黑名单拦截 ──
     if is_user_blocked(sender_id):
-        logger.debug(f"[小禹插件] 黑名单拦截用户 {sender_id}")
+        logger.debug(f"黑名单拦截用户 {sender_id}")
         return
 
     # ── 时间查询（所有人可用）──
@@ -216,7 +213,7 @@ def _cmd_time(sender_id) -> str:
         f"⏰ 时间：{now.strftime('%H:%M:%S')}",
         f"🌏 时区：北京时间 (UTC+8)",
     ]
-    logger.info(f"[小禹插件] 用户 {_safe_id(sender_id)} 查询系统时间")
+    logger.info(f"用户 {_safe_id(sender_id)} 查询系统时间")
     return "\n".join(lines)
 
 
@@ -233,7 +230,7 @@ def _cmd_change_master(raw_msg, sender_id) -> str:
     if not _update_config_json("master_id", new_master):
         return "❌ 配置文件更新失败，请检查权限"
 
-    logger.info(f"[小禹插件] 主人 {_safe_id(sender_id)} 将主人QQ变更为 {new_master}")
+    logger.info(f"主人 {_safe_id(sender_id)} 将主人QQ变更为 {new_master}")
     return f"✅ 主人QQ已变更为 {new_master}（重启后完全生效）"
 
 
@@ -250,14 +247,14 @@ def _cmd_change_robot(raw_msg, sender_id) -> str:
     if not _update_config_json("robot_id", new_robot):
         return "❌ 配置文件更新失败，请检查权限"
 
-    logger.info(f"[小禹插件] 主人 {_safe_id(sender_id)} 将机器人QQ变更为 {new_robot}")
+    logger.info(f"主人 {_safe_id(sender_id)} 将机器人QQ变更为 {new_robot}")
     return f"✅ 机器人QQ已变更为 {new_robot}（重启后完全生效）"
 
 
 def _cmd_swap_identity(raw_msg, sender_id) -> str:
     """互换主人QQ和机器人QQ（防填反）"""
     try:
-        from core.config_manager import config_manager
+        from graci import config_manager
         from graci import plugin_manager
         old_master = str(config_manager.get("master_id", ""))
         old_robot = str(config_manager.get("robot_id", ""))
@@ -268,10 +265,10 @@ def _cmd_swap_identity(raw_msg, sender_id) -> str:
         plugin_manager.set_plugin_config("Xiaoyu_plugin", "master_id", old_robot)
         plugin_manager.set_plugin_config("Xiaoyu_plugin", "robot_id", old_master)
     except Exception as e:
-        logger.error(f"[小禹插件] 互换身份失败: {str(e)}")
+        logger.error(f"互换身份失败: {str(e)}")
         return "❌ 配置文件读写失败，请检查权限"
 
-    logger.info(f"[小禹插件] 主人 {_safe_id(sender_id)} 互换了主人QQ和机器人QQ：{old_master} ↔ {old_robot}")
+    logger.info(f"主人 {_safe_id(sender_id)} 互换了主人QQ和机器人QQ：{old_master} ↔ {old_robot}")
     return f"✅ 已互换！主人QQ → {old_robot}，机器人QQ → {old_master}（重启后完全生效）"
 
 
@@ -288,14 +285,14 @@ def _cmd_blacklist(raw_msg: str, sender_id: str) -> str:
     if sub_cmd == "打开":
         config["enabled"] = True
         _save_blocklist(config)
-        logger.info(f"[小禹插件] 主人 {_safe_id(sender_id)} 打开了黑名单模式；当前黑名单人数：{len(config['users'])}")
+        logger.info(f"主人 {_safe_id(sender_id)} 打开了黑名单模式；当前黑名单人数：{len(config['users'])}")
         return "🛡️ 黑名单模式已**打开**，被添加的用户将无法获得任何回复"
 
     # ── 关闭 ──
     if sub_cmd == "关闭":
         config["enabled"] = False
         _save_blocklist(config)
-        logger.info(f"[小禹插件] 主人 {_safe_id(sender_id)} 关闭了黑名单模式")
+        logger.info(f"主人 {_safe_id(sender_id)} 关闭了黑名单模式")
         return "🔓 黑名单模式已**关闭**，所有用户恢复正常回复"
 
     # ── 列表 ──
@@ -306,7 +303,7 @@ def _cmd_blacklist(raw_msg: str, sender_id: str) -> str:
         if not users:
             return f"📋 黑名单 {status}\n当前无黑名单用户"
         user_list = "\n".join(f"  • {u}" for u in users)
-        logger.info(f"[小禹插件] 主人 {_safe_id(sender_id)} 查看黑名单列表")
+        logger.info(f"主人 {_safe_id(sender_id)} 查看黑名单列表")
         return f"📋 黑名单 {status}（共 {len(users)} 人）\n{user_list}"
 
     # ── 添加 ──
@@ -346,7 +343,7 @@ def _blacklist_add(config: dict, qq_str: str, sender_id: str) -> str:
     if success:
         config["users"] = list(existing)
         _save_blocklist(config)
-        logger.info(f"[小禹插件] 主人 {_safe_id(sender_id)} 添加 {len(success)} 个QQ到黑名单：{success}")
+        logger.info(f"主人 {_safe_id(sender_id)} 添加 {len(success)} 个QQ到黑名单：{success}")
 
     result = []
     if success:
@@ -372,7 +369,7 @@ def _blacklist_remove(config: dict, qq_str: str, sender_id: str) -> str:
     users.remove(qq)
     config["users"] = users
     _save_blocklist(config)
-    logger.info(f"[小禹插件] 主人 {_safe_id(sender_id)} 从黑名单移除了 {qq}")
+    logger.info(f"主人 {_safe_id(sender_id)} 从黑名单移除了 {qq}")
     return f"✅ 已将「{qq}」从黑名单移除"
 
 
@@ -398,10 +395,10 @@ async def _cmd_like_me(sender_id: str) -> str:
     """赞我：给自己点10个赞（所有人可用）"""
     try:
         await gracy_call_api("send_like", {"user_id": int(sender_id), "times": 10})
-        logger.info(f"[小禹插件] 用户 {_safe_id(sender_id)} 赞了自己 10 次")
+        logger.info(f"用户 {_safe_id(sender_id)} 赞了自己 10 次")
         return f"✅ 已给你点了 10 个赞！"
     except Exception as e:
-        logger.error(f"[小禹插件] 赞我失败: {e}", exc_info=True)
+        logger.error(f"赞我失败: {e}", exc_info=True)
         return f"❌ 点赞失败：{e}"
 
 
@@ -432,10 +429,10 @@ async def _cmd_like(raw_msg: str, sender_id: str) -> str:
     try:
         result = await gracy_call_api("send_like", {"user_id": int(qq), "times": times})
         # send_like 是空返回 API（retcode=0 但无 data 字段），返回 None 也是成功
-        logger.info(f"[小禹插件] 主人 {_safe_id(sender_id)} 给 {qq} 点了 {times} 个赞")
+        logger.info(f"主人 {_safe_id(sender_id)} 给 {qq} 点了 {times} 个赞")
         return f"✅ 已给 {qq} 发送 {times} 个赞！"
     except Exception as e:
-        logger.error(f"[小禹插件] 点赞失败: {e}", exc_info=True)
+        logger.error(f"点赞失败: {e}", exc_info=True)
         return f"❌ 点赞失败：{e}"
 
 
@@ -455,14 +452,14 @@ async def _cmd_poke(raw_msg: str, sender_id: str) -> str:
     try:
         result = await gracy_call_api("friend_poke", {"user_id": int(qq)})
         if result is not None and result.get("status") == "ok":
-            logger.info(f"[小禹插件] 主人 {_safe_id(sender_id)} 戳了戳 {qq}")
+            logger.info(f"主人 {_safe_id(sender_id)} 戳了戳 {qq}")
             return f"✅ 已戳了戳 {qq}！"
         else:
             # friend_poke 可能在某些版本返回不同，忽略具体响应
-            logger.info(f"[小禹插件] 主人 {_safe_id(sender_id)} 戳了戳 {qq}，响应: {result}")
+            logger.info(f"主人 {_safe_id(sender_id)} 戳了戳 {qq}，响应: {result}")
             return f"✅ 已尝试戳一戳 {qq}"
     except Exception as e:
-        logger.error(f"[小禹插件] 戳一戳失败: {e}", exc_info=True)
+        logger.error(f"戳一戳失败: {e}", exc_info=True)
         return f"❌ 戳一戳失败：{e}"
 
 
@@ -475,13 +472,13 @@ def _cmd_hotreload(raw_msg: str, sender_id: str) -> str:
     sub = parts[1].strip()
     if sub == "开启":
         _write_hotreload_flag(True)
-        logger.info(f"[小禹插件] 主人 {_safe_id(sender_id)} 开启了热重载，即将重启")
+        logger.info(f"主人 {_safe_id(sender_id)} 开启了热重载，即将重启")
         _restart_bot()
         return "🔄 热重载已**开启**，机器人将在 2 秒后自动重启生效"
 
     elif sub == "关闭":
         _write_hotreload_flag(False)
-        logger.info(f"[小禹插件] 主人 {_safe_id(sender_id)} 关闭了热重载，即将重启")
+        logger.info(f"主人 {_safe_id(sender_id)} 关闭了热重载，即将重启")
         _restart_bot()
         return "⚪ 热重载已**关闭**，机器人将在 2 秒后自动重启生效（此后修改代码需手动重启）"
 
@@ -501,7 +498,7 @@ def _restart_bot():
                 # Linux/Mac 用 os.execv 原子替换当前进程，避免端口冲突
                 os.execv(sys.executable, [sys.executable] + sys.argv)
         except Exception as e:
-            logger.error(f"[小禹插件] 启动新进程失败: {e}")
+            logger.error(f"启动新进程失败: {e}")
         sys.exit(0)
     threading.Thread(target=_do_restart, daemon=True).start()
 
@@ -523,9 +520,9 @@ async def _cmd_xiaoyu_help(target_id, chat_type, sender_id):
             f.write(img_bytes)
         # 发送帮助图片（通过 GracyAdapter 适配层）
         await gracy_send_msg(target_id, GracyImage(file_path=XIAOYU_HELP_IMG), chat_type=chat_type)
-        logger.info(f"[小禹插件] 用户 {_safe_id(sender_id)} 查看了小禹帮助")
+        logger.info(f"用户 {_safe_id(sender_id)} 查看了小禹帮助")
     except Exception as e:
-        logger.error(f"[小禹插件] 生成帮助图片失败: {str(e)}")
+        logger.error(f"生成帮助图片失败: {str(e)}")
         await gracy_send_msg(target_id, GracyText(text="⚠️ 生成帮助图片失败，请联系管理员"), chat_type=chat_type)
 
 
@@ -553,13 +550,13 @@ async def _cmd_install_deps(raw_msg: str, sender_id: str) -> str:
         with open(req_file, "r", encoding="utf-8") as f:
             deps = [line.strip() for line in f if line.strip() and not line.startswith("#")]
     except Exception as e:
-        logger.error(f"[小禹插件] 读取 {req_file} 失败: {e}")
+        logger.error(f"读取 {req_file} 失败: {e}")
         return f"❌ 读取 requirements.txt 失败: {e}"
 
     if not deps:
         return f"⚠️ 插件「{plugin_dirname}」的 requirements.txt 为空"
 
-    logger.info(f"[小禹插件] 主人 {_safe_id(sender_id)} 正在为插件 {plugin_dirname} 安装依赖：{deps}")
+    logger.info(f"主人 {_safe_id(sender_id)} 正在为插件 {plugin_dirname} 安装依赖：{deps}")
 
     # 执行 pip install（异步）
     try:
@@ -570,15 +567,15 @@ async def _cmd_install_deps(raw_msg: str, sender_id: str) -> str:
         )
         stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=120)
         if proc.returncode == 0:
-            logger.info(f"[小禹插件] 插件 {plugin_dirname} 依赖安装成功")
+            logger.info(f"插件 {plugin_dirname} 依赖安装成功")
             return f"✅ 插件「{plugin_dirname}」依赖安装成功！\n已安装：{', '.join(deps)}"
         else:
             err_msg = stderr.decode("utf-8", errors="ignore").strip().split("\n")[-1] if stderr else "未知错误"
-            logger.error(f"[小禹插件] 插件 {plugin_dirname} 依赖安装失败: {err_msg}")
+            logger.error(f"插件 {plugin_dirname} 依赖安装失败: {err_msg}")
             return f"❌ 依赖安装失败：{err_msg}"
     except asyncio.TimeoutError:
-        logger.error(f"[小禹插件] 插件 {plugin_dirname} 依赖安装超时")
+        logger.error(f"插件 {plugin_dirname} 依赖安装超时")
         return "❌ 安装超时（超过 120 秒），请检查网络或手动安装"
     except Exception as e:
-        logger.error(f"[小禹插件] 插件 {plugin_dirname} 依赖安装异常: {e}")
+        logger.error(f"插件 {plugin_dirname} 依赖安装异常: {e}")
         return f"❌ 安装异常: {e}"

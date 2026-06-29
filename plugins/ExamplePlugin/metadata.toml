@@ -1,19 +1,22 @@
 [plugin]
 name        = "示例插件"
-version     = "1.0.0"
+version     = "2.0.0"
 author      = "GracyBot开发团队"
-description = "展示版本控制和依赖管理功能的示例插件"
+description = "10层架构模板 / 实验场 — 展示新风格插件开发完整模式"
 
 [handler]
-entry       = "handle_example"
+entry       = "handle_echo"
 
 [trigger]
-commands       = ["/示例", "/version", "/示例依赖"]
+commands       = ["/echo", "/say", "/owner", "/joke", "/meme", "/botinfo"]
 chat_type      = ["private", "group"]
 permission     = "all"
 is_at_required = false
 
 [trigger.command_descriptions]
-"/示例"     = "查看示例插件基本功能演示"
-"/version"  = "查看所有已加载插件的版本与依赖信息"
-"/示例依赖" = "了解插件依赖管理功能的使用说明"
+"/echo"   = "复读机：/echo <内容>"
+"/say"    = "同 /echo"
+"/owner"  = "查看 Bot 状态（仅主人）"
+"/joke"   = "随机冷笑话（每分钟限 3 次）"
+"/meme"   = "发送一张示例图片"
+"/botinfo" = "查询平台信息"

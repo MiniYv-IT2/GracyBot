@@ -5,6 +5,7 @@ import re
 from datetime import datetime, timedelta
 from .database import add_scheduled_task, get_scheduled_tasks, disable_task, get_personas, get_current_persona
 from .api_handler import call_llm_api, load_config
+from graci import get_logger
 
 def parse_time_expression(text):
     relative_patterns = [
@@ -99,8 +100,7 @@ async def schedule_task(chat_id, task_time, task_content, persona=None):
     await add_scheduled_task(chat_id, task_time, task_content, persona)
 
 def check_and_execute_tasks():
-    import logging
-    logger = logging.getLogger('Gracy.LLMChat.scheduler')
+    logger = get_logger("LLMChat.scheduler")
     logger.debug("⏰ 定时任务检查器已启动")
     
     executed_tasks = set()

@@ -9,19 +9,18 @@
 """
 import os
 import time
-import logging
 from typing import Optional
 
 import httpx
 
 from graci import on_command, plugin_handler, PluginContext
 from graci import GracyImage, GracyText, GracyVoice
-from graci import plugin_manager
+from graci import plugin_manager, get_logger
 
 from .core.api import search_songs, play_song, SearchItem, SongPlayData
 from .core.draw import draw_search_results, draw_song_detail
 
-_logger = logging.getLogger("Gracy.Music")
+logger = get_logger("Music")
 
 # ── 会话缓存（内存级，重启即失） ──
 _last_search_keyword: str = ""
@@ -46,10 +45,10 @@ async def _download_mp3(url: str, song_name: str) -> Optional[str]:
             with open(local_path, "wb") as f:
                 f.write(resp.content)
 
-        _logger.info(f"[音频] 下载完成: {local_path} ({len(resp.content)} bytes)")
+        logger.info(f"[音频] 下载完成: {local_path} ({len(resp.content)} bytes)")
         return local_path
     except Exception as e:
-        _logger.error(f"[音频] 下载失败: {e}", exc_info=True)
+        logger.error(f"[音频] 下载失败: {e}", exc_info=True)
         return None
 
 
@@ -73,7 +72,7 @@ async def handle_music(ctx: PluginContext):
         try:
             results, pagination = await search_songs(args)
         except Exception as e:
-            _logger.error(f"[点歌] 搜索异常: {e}", exc_info=True)
+            logger.error(f"[点歌] 搜索异常: {e}", exc_info=True)
             await ctx.reply(f"❌ 搜索失败：{e}")
             return
 
@@ -87,7 +86,7 @@ async def handle_music(ctx: PluginContext):
         try:
             img_path = draw_search_results(_last_search_results, args)
         except Exception as e:
-            _logger.error(f"[点歌] 绘图异常: {e}", exc_info=True)
+            logger.error(f"[点歌] 绘图异常: {e}", exc_info=True)
             lines = [f"🎵 搜索: {args}\n"]
             for i, s in enumerate(_last_search_results):
                 lines.append(f"  {i+1}. {s.name} — {s.artist}")
@@ -96,7 +95,7 @@ async def handle_music(ctx: PluginContext):
             return
 
         await ctx.send(GracyImage(file_path=img_path))
-        _logger.info(f"用户{ctx.sender_id} 点歌搜索: {args} ({len(_last_search_results)}首)")
+        logger.info(f"用户{ctx.sender_id} 点歌搜索: {args} ({len(_last_search_results)}首)")
         return
 
     # ── /选择 N — 选取播放 ──
@@ -121,7 +120,7 @@ async def handle_music(ctx: PluginContext):
         try:
             detail = await play_song(_last_search_keyword, selected.idx)
         except Exception as e:
-            _logger.error(f"[选择] 解析异常: {e}", exc_info=True)
+            logger.error(f"[选择] 解析异常: {e}", exc_info=True)
             await ctx.reply(f"❌ 获取失败：{e}")
             return
 
@@ -136,19 +135,19 @@ async def handle_music(ctx: PluginContext):
             local_path = await _download_mp3(detail.music_url, detail.name)
             if local_path:
                 await ctx.send(GracyVoice(file_path=local_path))
-                _logger.info(f"用户{ctx.sender_id} 播放第{idx}首: {selected.name}")
+                logger.info(f"用户{ctx.sender_id} 播放第{idx}首: {selected.name}")
                 return
 
-        _logger.warning(f"[选择] 下载失败，降级发详情图")
+        logger.warning(f"[选择] 下载失败，降级发详情图")
         try:
             img_path = draw_song_detail(detail)
         except Exception as e:
-            _logger.error(f"[选择] 绘图异常: {e}", exc_info=True)
+            logger.error(f"[选择] 绘图异常: {e}", exc_info=True)
             await ctx.reply(f"🎵 {detail.name}\n歌手: {detail.artist}")
             return
 
         await ctx.send(GracyImage(file_path=img_path))
-        _logger.info(f"用户{ctx.sender_id} 选择了第{idx}首: {selected.name} (无音频)")
+        logger.info(f"用户{ctx.sender_id} 选择了第{idx}首: {selected.name} (无音频)")
         return
 
     # ── /清理缓存 — 清理过期缓存文件 ──
@@ -178,7 +177,7 @@ async def handle_music(ctx: PluginContext):
             f"  • 删除过期文件（>{max_days}天）: {deleted} 个\n"
             f"  • 保留有效文件: {kept} 个"
         )
-        _logger.info(f"用户{ctx.sender_id} 清理缓存: 删除{deleted}, 保留{kept}")
+        logger.info(f"用户{ctx.sender_id} 清理缓存: 删除{deleted}, 保留{kept}")
         return
 
     # ── /歌曲详情 — 查看详情 ──
@@ -190,7 +189,7 @@ async def handle_music(ctx: PluginContext):
         try:
             img_path = draw_song_detail(_last_selected_song)
         except Exception as e:
-            _logger.error(f"[详情] 绘图异常: {e}", exc_info=True)
+            logger.error(f"[详情] 绘图异常: {e}", exc_info=True)
             d = _last_selected_song
             await ctx.reply(f"🎵 {d.name}\n歌手: {d.artist}")
             return

@@ -36,7 +36,7 @@ class GracyAdapter(ABC):
 
         Args:
             target: 目标 ID
-            segments: 结构化消息段列表
+            segments: 结构化消息段列表（支持 GracyText, GracyImage, GracyAt, GracyReply, GracyVoice, GracyFile, GracyVideo, GracyForward）
             chat_type: "private" | "group"
 
         Returns:

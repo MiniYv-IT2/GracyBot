@@ -1,12 +1,10 @@
 ﻿import os
 import urllib.parse
 import sys
-import logging
 from typing import Dict, Optional
 from playwright.async_api import async_playwright, TimeoutError as PwTimeout
 from graci import plugin_manager
-
-_logger = logging.getLogger("Gracy.Easysearch")
+from graci import get_logger; logger = get_logger("Easysearch")
 
 PLUGIN_DIR = os.path.dirname(os.path.abspath(__file__))
 CACHE_DIR = os.path.join(PLUGIN_DIR, "data")
@@ -74,7 +72,7 @@ async def _screenshot_page(url: str, wait_ms: int = 3000) -> Optional[str]:
     timeout = cfg.get("timeout", 20) * 1000
     proxy = _detect_proxy()
     if proxy:
-        _logger.info(f"[截图] 使用代理: {proxy['server']}")
+        logger.info(f"[截图] 使用代理: {proxy['server']}")
 
     try:
         async with async_playwright() as pw:
@@ -93,7 +91,7 @@ async def _screenshot_page(url: str, wait_ms: int = 3000) -> Optional[str]:
                 has_touch=True,
             )
             page = await context.new_page()
-            _logger.info(f"[截图] 正在导航至: {url[:60]}...")
+            logger.info(f"[截图] 正在导航至: {url[:60]}...")
             await page.goto(url, timeout=timeout, wait_until="networkidle")
             await page.wait_for_timeout(wait_ms)
 
@@ -107,14 +105,14 @@ async def _screenshot_page(url: str, wait_ms: int = 3000) -> Optional[str]:
                 "width": IPHONE_VIEWPORT["width"],
                 "height": min(page_height, 3000),
             })
-            _logger.info(f"[截图] 成功: {path}")
+            logger.info(f"[截图] 成功: {path}")
             return path
 
     except PwTimeout:
-        _logger.warning(f"[截图] 超时: {url[:60]}...")
+        logger.warning(f"[截图] 超时: {url[:60]}...")
         return None
     except Exception as e:
-        _logger.error(f"[截图] 失败: {e}", exc_info=True)
+        logger.error(f"[截图] 失败: {e}", exc_info=True)
         return None
 
 

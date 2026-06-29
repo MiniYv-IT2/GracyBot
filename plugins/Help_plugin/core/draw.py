@@ -6,8 +6,9 @@ from typing import Dict, List, Tuple, Any
 import numpy as np
 from PIL import Image, ImageDraw, ImageFont
 
-from graci import logger
-from core.config import *
+from graci import get_logger
+
+logger = get_logger("Help.draw")
 
 
 class GracyBotHelpDrawer:

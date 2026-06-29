@@ -3,15 +3,16 @@
 """
 import re
 import json
-import logging
 from typing import Optional
 
 from bs4 import BeautifulSoup
 
+from graci import get_logger
+
 from .fetcher import fetch_url, fetch_image
 from ..config import ATTR_MAP, RARITY_MAP, SLUG_NAME_MAP, BASE_URL
 
-_logger = logging.getLogger("Gracy.NTEGuide.parser")
+logger = get_logger("NTEGuide.parser")
 
 # ── 工具 ──
 
@@ -88,7 +89,7 @@ def _extract_skills_from_rsc(html: str) -> dict:
         except json.JSONDecodeError:
             pass
     except Exception as e:
-        _logger.debug(f"RSC技能提取失败: {e}")
+        logger.debug(f"RSC技能提取失败: {e}")
 
     return {}
 

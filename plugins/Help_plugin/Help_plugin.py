@@ -1,14 +1,12 @@
 ﻿"""帮助插件 — 查询所有插件命令，返回帮助图片"""
 import collections
 import os
-import logging
-
-from graci import on_command, plugin_handler, PluginContext
+from graci import get_logger, on_command, plugin_handler, PluginContext
 from graci import GracyImage
 from graci import plugin_manager
 from .core.draw import GracyBotHelpDrawer
 
-_logger = logging.getLogger("Gracy.Help")
+logger = get_logger("Help")
 
 _drawer = None
 
@@ -50,5 +48,5 @@ async def handle_help(ctx: PluginContext):
             f.write(image)
         await ctx.send(GracyImage(file_path=temp_path))
     except Exception as e:
-        _logger.error(f"生成帮助图片失败: {e}")
+        logger.error(f"生成帮助图片失败: {e}")
         await ctx.reply("生成帮助图片失败，请联系管理员")

@@ -11,10 +11,9 @@
   /异环清理缓存    — 清理缓存文件
 """
 import os
-import logging
 from typing import Optional
 
-from graci import on_command, plugin_handler, PluginContext
+from graci import get_logger, on_command, plugin_handler, PluginContext
 from graci import GracyImage, GracyText
 
 from .config import DATA_DIR, CACHE_DIR, CACHE_MAX_DAYS
@@ -30,7 +29,7 @@ from .core.draw import (
     draw_leveling_materials, draw_redeem_codes, draw_search_results,
 )
 
-_logger = logging.getLogger("Gracy.NTEGuide")
+logger = get_logger("NTEGuide")
 
 os.makedirs(CACHE_DIR, exist_ok=True)
 os.makedirs(os.path.join(DATA_DIR, "background"), exist_ok=True)
@@ -203,5 +202,5 @@ async def handle_nte(ctx: PluginContext):
             return
 
     except Exception as e:
-        _logger.error(f"命令执行异常 [{cmd}]: {e}", exc_info=True)
+        logger.error(f"命令执行异常 [{cmd}]: {e}", exc_info=True)
         await ctx.reply(f"处理命令时出错: {e}")

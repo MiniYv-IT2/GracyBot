@@ -12,12 +12,11 @@ import os
 import re
 import asyncio
 import subprocess
-import logging
 from urllib.request import urlopen, Request
 from urllib.error import URLError
 import json
 
-from graci import on_command, plugin_handler, PluginContext, require_master
+from graci import on_command, plugin_handler, PluginContext, require_master, get_logger
 
 from gracone_core import (
     GRACONE_VERSION,
@@ -30,7 +29,7 @@ from gracone_core import (
     full_reload,
 )
 
-_logger = logging.getLogger("Gracone.Admin")
+logger = get_logger("Gracone.Admin")
 
 
 # ════════════════════════════════════════════════════
@@ -138,7 +137,7 @@ async def _handle_disable(ctx: PluginContext, plugin_name: str):
     await full_reload()
 
     await ctx.reply("✅ 已禁用插件「{}」，重启后仍然生效".format(plugin_name))
-    _logger.info(f"用户 {ctx.sender_id} 禁用了插件: {plugin_name}")
+    logger.info(f"用户 {ctx.sender_id} 禁用了插件: {plugin_name}")
 
 
 async def _handle_enable(ctx: PluginContext, plugin_name: str):
@@ -163,7 +162,7 @@ async def _handle_enable(ctx: PluginContext, plugin_name: str):
     await full_reload()
 
     await ctx.reply("✅ 已启用插件「{}」，重启后仍然生效".format(plugin_name))
-    _logger.info(f"用户 {ctx.sender_id} 启用了插件: {plugin_name}")
+    logger.info(f"用户 {ctx.sender_id} 启用了插件: {plugin_name}")
 
 
 # ════════════════════════════════════════════════════

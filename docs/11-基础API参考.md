@@ -68,6 +68,9 @@ from graci import (
     GracyAt,          # GracyAt(target_id: str)
     GracyReply,       # GracyReply(message_id: str)
     GracyVoice,       # GracyVoice(file_path=""/url="")
+    GracyFile,        # GracyFile(file_path=""/url="")
+    GracyVideo,       # GracyVideo(file_path=""/url=""/file_data=b"")
+    GracyForward,     # GracyForward(forward_id="" / title="")
 )
 ```
 

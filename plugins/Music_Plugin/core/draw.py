@@ -10,16 +10,15 @@
 import io
 import os
 import secrets
-import logging
 from typing import List, Optional
 
 import httpx
 from PIL import Image, ImageDraw, ImageFont, ImageFilter
 
-from graci import BOT_VERSION
+from graci import BOT_VERSION, get_logger
 from .api import SearchItem, SongPlayData
 
-_logger = logging.getLogger("Gracy.Music")
+logger = get_logger("Music.draw")
 
 # ── 路径 ──
 PLUGIN_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -74,7 +73,7 @@ def _load_random_background(target_w: int, target_h: int) -> Optional[Image.Imag
             return None
         chosen = secrets.choice(files)
         bg_path = os.path.join(BACKGROUND_DIR, chosen)
-        _logger.info(f"[绘图] 随机背景图：{chosen}（共{len(files)}张可选）")
+        logger.info(f"[绘图] 随机背景图：{chosen}（共{len(files)}张可选）")
 
         bg = Image.open(bg_path).convert("RGB")
         bw, bh = bg.size
@@ -89,7 +88,7 @@ def _load_random_background(target_w: int, target_h: int) -> Optional[Image.Imag
         bg = Image.blend(bg, overlay, 0.35)
         return bg
     except Exception as e:
-        _logger.warning(f"[绘图] 背景图加载失败：{e}")
+        logger.warning(f"[绘图] 背景图加载失败：{e}")
         return None
 
 
@@ -198,7 +197,7 @@ def draw_search_results(results: List[SearchItem], keyword: str) -> str:
     os.makedirs(out_dir, exist_ok=True)
     out_path = os.path.join(out_dir, "search_results.png")
     bg.save(out_path, "PNG")
-    _logger.info(f"[绘图] 搜索结果图已保存: {out_path}")
+    logger.info(f"[绘图] 搜索结果图已保存: {out_path}")
     return out_path
 
 
@@ -375,5 +374,5 @@ def draw_song_detail(song: SongPlayData) -> str:
     os.makedirs(out_dir, exist_ok=True)
     out_path = os.path.join(out_dir, "song_detail.png")
     bg.save(out_path, "PNG")
-    _logger.info(f"[绘图] 歌曲详情图已保存: {out_path} ({w}x{h})")
+    logger.info(f"[绘图] 歌曲详情图已保存: {out_path} ({w}x{h})")
     return out_path

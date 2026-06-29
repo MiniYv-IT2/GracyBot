@@ -17,10 +17,9 @@ from typing import Dict, List, Optional
 # 添加项目根目录到Python路径
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
-from graci import logger
-from graci import gracy_send_msg
-from graci import GracyText
-from graci import MASTER_ID
+from graci import get_logger, gracy_send_msg, GracyText, MASTER_ID
+
+logger = get_logger("Update")
 
 # 插件信息
 PLUGIN_INFO = {
@@ -112,11 +111,11 @@ class UpdateManager:
         
         # 检查.git目录是否存在
         if not os.path.isdir(git_dir):
-            logger.info("[Update_Plugin] 检测到git仓库未初始化，开始初始化")
+            logger.info("检测到git仓库未初始化，开始初始化")
             try:
                 # 初始化git仓库
                 await _run_git_command(['git', 'init'], cwd=current_dir)
-                logger.info("[Update_Plugin] git仓库初始化成功")
+                logger.info("git仓库初始化成功")
                 
                 # 选择最佳仓库地址
                 selected_repo = await self._select_best_repo()
@@ -127,24 +126,24 @@ class UpdateManager:
                     if not result.returncode == 0:
                         # 添加远程仓库
                         await _run_git_command(['git', 'remote', 'add', 'origin', selected_repo], cwd=current_dir)
-                        logger.info(f"[Update_Plugin] 添加远程仓库成功: {selected_repo}")
+                        logger.info(f"添加远程仓库成功: {selected_repo}")
                 except Exception:
                     # 添加远程仓库
                     await _run_git_command(['git', 'remote', 'add', 'origin', selected_repo], cwd=current_dir)
-                    logger.info(f"[Update_Plugin] 添加远程仓库成功: {selected_repo}")
+                    logger.info(f"添加远程仓库成功: {selected_repo}")
                 
                 # 设置用户信息
                 try:
                     await _run_git_command(['git', 'config', 'user.name', 'GracyBot'], cwd=current_dir)
                     await _run_git_command(['git', 'config', 'user.email', 'gracybot@example.com'], cwd=current_dir)
-                    logger.info("[Update_Plugin] 设置git用户信息成功")
+                    logger.info("设置git用户信息成功")
                 except Exception as e:
-                    logger.warning(f"[Update_Plugin] 设置git用户信息失败: {str(e)}")
+                    logger.warning(f"设置git用户信息失败: {str(e)}")
                 
             except Exception as e:
-                logger.error(f"[Update_Plugin] 初始化git仓库失败: {str(e)}")
+                logger.error(f"初始化git仓库失败: {str(e)}")
         else:
-            logger.info("[Update_Plugin] git仓库已存在，跳过初始化")
+            logger.info("git仓库已存在，跳过初始化")
 
     def _load_config(self):
         """加载配置文件"""
@@ -155,7 +154,7 @@ class UpdateManager:
                     self.auto_update_enabled = config.get('auto_update_enabled', False)
                     self.last_check_time = config.get('last_check_time', 0)
         except Exception as e:
-            logger.error(f"[Update_Plugin] 加载配置失败: {str(e)}")
+            logger.error(f"加载配置失败: {str(e)}")
 
     def _save_config(self):
         """保存配置文件"""
@@ -167,7 +166,7 @@ class UpdateManager:
             with open(CONFIG_FILE, 'w', encoding='utf-8') as f:
                 json.dump(config, f, ensure_ascii=False, indent=2)
         except Exception as e:
-            logger.error(f"[Update_Plugin] 保存配置失败: {str(e)}")
+            logger.error(f"保存配置失败: {str(e)}")
 
     def _get_current_version(self):
         """获取当前版本号（同步方式，仅尝试导入配置）"""
@@ -206,25 +205,25 @@ class UpdateManager:
             response_time = time.time() - start_time
             
             if result.returncode == 0:
-                logger.info(f"[Update_Plugin] {repo['name']} 连接成功，响应时间: {response_time:.2f}秒")
+                logger.info(f"{repo['name']} 连接成功，响应时间: {response_time:.2f}秒")
                 return repo, response_time, True
             else:
-                logger.warning(f"[Update_Plugin] {repo['name']} 连接失败")
+                logger.warning(f"{repo['name']} 连接失败")
                 return repo, None, False
         except Exception as e:
-            logger.warning(f"[Update_Plugin] {repo['name']} 连接异常: {str(e)}")
+            logger.warning(f"{repo['name']} 连接异常: {str(e)}")
             return repo, None, False
 
     async def _test_repo_connection_parallel(self):
         """并行测试仓库连接速度"""
-        logger.info("[Update_Plugin] 开始并行测试仓库连接速度...")
+        logger.info("开始并行测试仓库连接速度...")
         
         # 使用 asyncio.gather 并行测试所有仓库
         try:
             tasks = [self._test_single_repo(repo) for repo in REPO_LIST]
             results_list = await asyncio.wait_for(asyncio.gather(*tasks, return_exceptions=True), timeout=5)
         except Exception:
-            logger.warning("[Update_Plugin] 并行测试超时，使用快速选择策略")
+            logger.warning("并行测试超时，使用快速选择策略")
             return {}
         
         results = {}
@@ -251,12 +250,12 @@ class UpdateManager:
                     timeout=0.5
                 )
                 if result.returncode == 0:
-                    logger.info(f"[Update_Plugin] 使用缓存的仓库: {self.best_repo['name']}")
+                    logger.info(f"使用缓存的仓库: {self.best_repo['name']}")
                     return self.best_repo['url']
             except Exception:
-                logger.warning(f"[Update_Plugin] 缓存仓库 {self.best_repo['name']} 连接失败，重新选择")
+                logger.warning(f"缓存仓库 {self.best_repo['name']} 连接失败，重新选择")
         
-        logger.info("[Update_Plugin] 开始超快速仓库选择...")
+        logger.info("开始超快速仓库选择...")
         
         # 使用 asyncio.gather 同时测试两个仓库
         async def test_repo(name, url):
@@ -293,19 +292,19 @@ class UpdateManager:
         
         # 检查结果并立即返回
         if results.get('GitHub') and results['GitHub'][0]:
-            logger.info(f"[Update_Plugin] GitHub连接成功，响应时间: {results['GitHub'][1]:.2f}秒")
+            logger.info(f"GitHub连接成功，响应时间: {results['GitHub'][1]:.2f}秒")
             self.best_repo = {"name": "GitHub", "url": GITHUB_REPO}
             self.repo_response_times['GitHub'] = results['GitHub'][1]
             return GITHUB_REPO
         
         if results.get('码云') and results['码云'][0]:
-            logger.info(f"[Update_Plugin] 码云连接成功，响应时间: {results['码云'][1]:.2f}秒")
+            logger.info(f"码云连接成功，响应时间: {results['码云'][1]:.2f}秒")
             self.best_repo = {"name": "码云", "url": GITEE_REPO}
             self.repo_response_times['码云'] = results['码云'][1]
             return GITEE_REPO
         
         # 如果都失败，使用快速串行重试（更短超时）
-        logger.warning("[Update_Plugin] 并行测试失败，使用快速串行重试...")
+        logger.warning("并行测试失败，使用快速串行重试...")
         
         # 先快速测试码云（1秒超时）
         try:
@@ -314,7 +313,7 @@ class UpdateManager:
                 timeout=1
             )
             if result.returncode == 0:
-                logger.info("[Update_Plugin] 码云快速重试成功")
+                logger.info("码云快速重试成功")
                 self.best_repo = {"name": "码云", "url": GITEE_REPO}
                 return GITEE_REPO
         except Exception:
@@ -327,14 +326,14 @@ class UpdateManager:
                 timeout=1
             )
             if result.returncode == 0:
-                logger.info("[Update_Plugin] GitHub快速重试成功")
+                logger.info("GitHub快速重试成功")
                 self.best_repo = {"name": "GitHub", "url": GITHUB_REPO}
                 return GITHUB_REPO
         except Exception:
             pass
         
         # 如果都失败，默认使用GitHub
-        logger.error("[Update_Plugin] 所有仓库连接失败，默认使用GitHub")
+        logger.error("所有仓库连接失败，默认使用GitHub")
         self.best_repo = {"name": "GitHub", "url": GITHUB_REPO}
         return GITHUB_REPO
 
@@ -343,7 +342,7 @@ class UpdateManager:
         try:
             # 选择最佳仓库地址
             selected_repo = await self._select_best_repo()
-            logger.info(f"[Update_Plugin] 使用仓库: {self.best_repo['name']}")
+            logger.info(f"使用仓库: {self.best_repo['name']}")
             
             # 保存检查时间
             self.last_check_time = int(time.time())
@@ -365,21 +364,21 @@ class UpdateManager:
                     if result.returncode == 0:
                         break  # 成功则退出循环
                     else:
-                        logger.warning(f"[Update_Plugin] 第{git_retry_count}次Git命令执行失败: {result.stderr}")
+                        logger.warning(f"第{git_retry_count}次Git命令执行失败: {result.stderr}")
                         
                         if git_retry_count < max_git_retries:
                             wait_time = 5 * git_retry_count
-                            logger.info(f"[Update_Plugin] {wait_time}秒后重试Git命令...")
+                            logger.info(f"{wait_time}秒后重试Git命令...")
                             await asyncio.sleep(wait_time)
                 except subprocess.TimeoutExpired:
-                    logger.warning(f"[Update_Plugin] 第{git_retry_count}次Git命令超时")
+                    logger.warning(f"第{git_retry_count}次Git命令超时")
                     if git_retry_count < max_git_retries:
                         wait_time = 5 * git_retry_count
-                        logger.info(f"[Update_Plugin] {wait_time}秒后重试Git命令...")
+                        logger.info(f"{wait_time}秒后重试Git命令...")
                         await asyncio.sleep(wait_time)
             
             if result is None or result.returncode != 0:
-                logger.error(f"[Update_Plugin] Git命令最终执行失败")
+                logger.error(f"Git命令最终执行失败")
                 return None
             
             # 解析标签获取最新版本
@@ -398,7 +397,7 @@ class UpdateManager:
                         tags.append(tag_part)
             
             if not tags:
-                logger.warning("[Update_Plugin] 未找到有效的版本标签")
+                logger.warning("未找到有效的版本标签")
                 return None
             
             # 排序并获取最新版本
@@ -416,7 +415,7 @@ class UpdateManager:
             }
             
         except subprocess.TimeoutExpired:
-            logger.error(f"[Update_Plugin] Git命令超时，可能是网络连接问题")
+            logger.error(f"Git命令超时，可能是网络连接问题")
             # 保存检查时间
             self.last_check_time = int(time.time())
             self._save_config()
@@ -424,9 +423,9 @@ class UpdateManager:
         except Exception as e:
                 # 更友好的错误提示，避免直接暴露技术错误
                 if 'Connection reset by peer' in str(e):
-                    logger.error(f"[Update_Plugin] 检查更新失败: 网络连接被重置，请稍后再试")
+                    logger.error(f"检查更新失败: 网络连接被重置，请稍后再试")
                 else:
-                    logger.error(f"[Update_Plugin] 检查更新失败: {str(e)}")
+                    logger.error(f"检查更新失败: {str(e)}")
                 # 保存检查时间
                 self.last_check_time = int(time.time())
                 self._save_config()
@@ -472,15 +471,15 @@ class UpdateManager:
             current_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
             
             # 实际执行备份操作
-            logger.info(f"[Update_Plugin] 开始备份当前版本到: {backup_dir}")
+            logger.info(f"开始备份当前版本到: {backup_dir}")
             try:
                 import shutil
                 shutil.copytree(current_dir, backup_dir, ignore=shutil.ignore_patterns('.git', '__pycache__', '*.pyc'))
-                logger.info(f"[Update_Plugin] 备份成功: {backup_dir}")
+                logger.info(f"备份成功: {backup_dir}")
             except Exception as e:
-                logger.warning(f"[Update_Plugin] 备份失败，但继续更新: {str(e)}")
+                logger.warning(f"备份失败，但继续更新: {str(e)}")
             
-            logger.info(f"[Update_Plugin] 开始执行更新，当前目录: {current_dir}")
+            logger.info(f"开始执行更新，当前目录: {current_dir}")
             
             # 拉取最新代码
             result = await _run_git_command(
@@ -490,14 +489,14 @@ class UpdateManager:
             )
             
             if result.returncode == 0:
-                logger.info(f"[Update_Plugin] 更新成功: {result.stdout}")
+                logger.info(f"更新成功: {result.stdout}")
                 return {'success': True, 'message': "更新成功喵~ Gracy已经变得更可爱啦~"}
             else:
-                logger.error(f"[Update_Plugin] 更新失败: {result.stderr}")
+                logger.error(f"更新失败: {result.stderr}")
                 # 更新失败时尝试恢复备份
                 try:
                     if os.path.exists(backup_dir):
-                        logger.info(f"[Update_Plugin] 更新失败，尝试恢复备份: {backup_dir}")
+                        logger.info(f"更新失败，尝试恢复备份: {backup_dir}")
                         # 删除当前目录内容（保留.git目录）
                         for item in os.listdir(current_dir):
                             if item != '.git':
@@ -518,14 +517,14 @@ class UpdateManager:
                                 elif os.path.isdir(src_path):
                                     import shutil
                                     shutil.copytree(src_path, dst_path)
-                        logger.info("[Update_Plugin] 备份恢复成功")
+                        logger.info("备份恢复成功")
                 except Exception as restore_error:
-                    logger.error(f"[Update_Plugin] 备份恢复失败: {str(restore_error)}")
+                    logger.error(f"备份恢复失败: {str(restore_error)}")
                 
                 return {'success': False, 'message': f"更新失败喵，错误信息: {result.stderr}"}
                 
         except Exception as e:
-            logger.error(f"[Update_Plugin] 执行更新异常: {str(e)}")
+            logger.error(f"执行更新异常: {str(e)}")
             return {'success': False, 'message': f"更新过程中发生错误喵: {str(e)}"}
 
     def toggle_auto_update(self, enable: bool):
@@ -546,7 +545,7 @@ class UpdateManager:
                 # 每小时检查一次是否需要运行
                 await asyncio.sleep(3600)
             except Exception as e:
-                logger.error(f"[Update_Plugin] 自动检查协程异常: {str(e)}")
+                logger.error(f"自动检查协程异常: {str(e)}")
                 await asyncio.sleep(3600)
 
     async def _check_and_notify(self):
@@ -562,9 +561,9 @@ class UpdateManager:
             # 发送私信给主人
             try:
                 await gracy_send_msg(str(MASTER_ID), GracyText(text=message), chat_type="private")
-                logger.info(f"[Update_Plugin] 已通知主人有新版本可用")
+                logger.info(f"已通知主人有新版本可用")
             except Exception as e:
-                logger.error(f"[Update_Plugin] 通知主人失败: {str(e)}")
+                logger.error(f"通知主人失败: {str(e)}")
 
     def _start_auto_check_task(self):
         """启动自动检查任务（兼容同步上下文）"""
@@ -582,28 +581,28 @@ async def handle_update_plugin(self_bot, bot, message, user_id, chat_type, permi
     global update_manager
     
     # 添加非常明显的日志标记
-    logger.info("[Update_Plugin] ====== handle_update_plugin 函数被调用 ======")
-    logger.info(f"[Update_Plugin] 用户ID: {user_id}, 消息类型: {chat_type}")
+    logger.info("====== handle_update_plugin 函数被调用 ======")
+    logger.info(f"用户ID: {user_id}, 消息类型: {chat_type}")
     
     try:
         if update_manager is None:
-            logger.info("[Update_Plugin] 创建UpdateManager实例")
+            logger.info("创建UpdateManager实例")
             update_manager = UpdateManager()
             update_manager.start_async_tasks()
         
         # 检查是否是主人
         if str(user_id) != str(MASTER_ID):
-            logger.warning(f"[Update_Plugin] 用户 {user_id} 无权使用更新功能")
+            logger.warning(f"用户 {user_id} 无权使用更新功能")
             await gracy_send_msg(str(user_id), GracyText(text="❌ 抱歉，只有主人才能使用此功能哦~"), chat_type=chat_type)
             return True
         
         # 获取消息内容
         message_content = message.get('text', '')
-        logger.info(f"[Update_Plugin] 收到消息内容: {message_content}")
+        logger.info(f"收到消息内容: {message_content}")
         
         # 处理 /系统更新 命令
         if message_content.startswith('/系统更新'):
-            logger.info("[Update_Plugin] 开始处理 /系统更新 命令")
+            logger.info("开始处理 /系统更新 命令")
             
             # 发送检查中的提示
             await gracy_send_msg(str(user_id), GracyText(text="🔍 正在检查更新喵，请稍等..."), chat_type=chat_type)
@@ -625,28 +624,28 @@ async def handle_update_plugin(self_bot, bot, message, user_id, chat_type, permi
             return True
         # 处理 /开启自动更新 命令
         elif message_content.startswith('/开启自动更新'):
-            logger.info("[Update_Plugin] 处理 /开启自动更新 命令")
+            logger.info("处理 /开启自动更新 命令")
             try:
                 update_manager.toggle_auto_update(True)
                 await gracy_send_msg(str(user_id), GracyText(text="✅ 已开启自动更新功能喵~"), chat_type=chat_type)
             except Exception as e:
-                logger.error(f"[Update_Plugin] 开启自动更新失败: {str(e)}")
+                logger.error(f"开启自动更新失败: {str(e)}")
                 await gracy_send_msg(str(user_id), GracyText(text="❌ 操作失败喵，请稍后再试~"), chat_type=chat_type)
             return True
         # 处理 /关闭自动更新 命令
         elif message_content.startswith('/关闭自动更新'):
-            logger.info("[Update_Plugin] 处理 /关闭自动更新 命令")
+            logger.info("处理 /关闭自动更新 命令")
             try:
                 update_manager.toggle_auto_update(False)
                 await gracy_send_msg(str(user_id), GracyText(text="✅ 已关闭自动更新功能喵~"), chat_type=chat_type)
             except Exception as e:
-                logger.error(f"[Update_Plugin] 关闭自动更新失败: {str(e)}")
+                logger.error(f"关闭自动更新失败: {str(e)}")
                 await gracy_send_msg(str(user_id), GracyText(text="❌ 操作失败喵，请稍后再试~"), chat_type=chat_type)
             return True
         
         # 处理 /确认更新 命令
         elif message_content.startswith('/确认更新'):
-            logger.info("[Update_Plugin] 处理 /确认更新 命令")
+            logger.info("处理 /确认更新 命令")
             
             # 发送更新中的提示
             await gracy_send_msg(str(user_id), GracyText(text="🔄 开始执行更新喵，请耐心等待..."), chat_type=chat_type)
@@ -663,16 +662,16 @@ async def handle_update_plugin(self_bot, bot, message, user_id, chat_type, permi
         
         # 处理 /取消更新 命令
         elif message_content.startswith('/取消更新'):
-            logger.info("[Update_Plugin] 处理 /取消更新 命令")
+            logger.info("处理 /取消更新 命令")
             await gracy_send_msg(str(user_id), GracyText(text="✅ 已取消更新操作喵~"), chat_type=chat_type)
             return True
         
-        logger.info("[Update_Plugin] 未匹配到任何更新相关命令")
+        logger.info("未匹配到任何更新相关命令")
         # 默认返回False表示未处理
         return False
     except Exception as e:
         # 捕获所有异常，确保返回友好的错误提示
-        logger.error(f"[Update_Plugin] 处理更新命令时发生异常: {str(e)}")
+        logger.error(f"处理更新命令时发生异常: {str(e)}")
         await gracy_send_msg(str(user_id), GracyText(text="❌ 检查更新失败喵，请稍后再试~"), chat_type=chat_type)
         return True
 
@@ -686,6 +685,6 @@ export_dict = {
 }
 
 # 模块初始化时的日志
-logger.info("[Update_Plugin] ====== 更新插件初始化完成 ======")
+logger.info("====== 更新插件初始化完成 ======")
 def __init__():
-    logger.info("[Update_Plugin] ====== 更新插件__init__被调用 ======")
+    logger.info("====== 更新插件__init__被调用 ======")

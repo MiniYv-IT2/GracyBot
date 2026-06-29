@@ -10,8 +10,9 @@ gracone_nonebot.py — 单文件模拟完整 nonebot 命名空间
 import sys
 import types
 import contextvars
-import logging
 from typing import Any, Callable, Dict, List, Optional, Set, Tuple, Union
+
+from graci import get_logger
 
 # ──────────────────────────────────────────────────────
 # _AutoModule: 递归自动创建子模块
@@ -609,7 +610,7 @@ nb_matcher.current_handler = contextvars.ContextVar('current_handler', default=N
 # ──────────────────────────────────────────────────────
 
 nb_log = sys.modules['nonebot.log']
-nb_log.logger = logging.getLogger("Gracone.NoneBot")
+nb_log.logger = get_logger("Gracone.NoneBot")
 
 # ──────────────────────────────────────────────────────
 # 12b. 填充 nonebot.utils

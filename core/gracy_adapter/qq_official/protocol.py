@@ -21,6 +21,8 @@ from core.gracy_adapter.message import (
     GracyReply,
     GracyVoice,
     GracyFile,
+    GracyVideo,
+    GracyForward,
 )
 
 _logger = logging.getLogger("Adapter.QQOfficial.protocol")
@@ -147,8 +149,12 @@ def _parse_message_content(content: str, data: dict) -> List[GracyMsg]:
 
     QQ 官方消息可能包含：
     - 纯文本
-    - @提及（attachments 中）
+    - @提及（mentions 字段）
     - 图片（attachments 中）
+    - 语音（attachments 中）
+    - 文件（attachments 中）
+    - 视频（attachments 中）
+    - 回复引用（message_reference 字段）
     """
     segments: List[GracyMsg] = []
 
@@ -156,11 +162,19 @@ def _parse_message_content(content: str, data: dict) -> List[GracyMsg]:
     if content:
         segments.append(GracyText(text=content))
 
-    # 附件（图片、文件等）
+    # 回复引用（message_reference 字段）
+    message_reference = data.get("message_reference")
+    if message_reference and isinstance(message_reference, dict):
+        ref_message_id = message_reference.get("message_id", "")
+        if ref_message_id:
+            segments.append(GracyReply(message_id=ref_message_id))
+
+    # 附件（图片、语音、文件、视频等）
     attachments = data.get("attachments", [])
     for att in attachments:
         content_type = att.get("content_type", "")
         url = att.get("url", "")
+        filename = att.get("filename", "")
 
         if content_type.startswith("image/"):
             segments.append(GracyImage(url=url))
@@ -174,6 +188,14 @@ def _parse_message_content(content: str, data: dict) -> List[GracyMsg]:
                 segments.append(GracyVoice(file_path=voice_url))
             if not asr_text and not voice_url:
                 _logger.debug(f"语音消息无 ASR 结果和 URL")
+        elif content_type == "file":
+            # 文件消息
+            if url:
+                segments.append(GracyFile(url=url, file_path=filename))
+        elif content_type.startswith("video/"):
+            # 视频消息
+            if url:
+                segments.append(GracyVideo(url=url, file_path=filename))
         else:
             _logger.debug(f"忽略未知附件类型: {content_type}")
 
@@ -187,11 +209,18 @@ def _parse_message_content(content: str, data: dict) -> List[GracyMsg]:
 
 
 def _extract_plain_text(segments: List[GracyMsg]) -> str:
-    """从消息段中提取纯文本"""
+    """从消息段中提取纯文本（包含标签）"""
     parts = []
     for seg in segments:
         if isinstance(seg, GracyText):
             parts.append(seg.text)
+        elif isinstance(seg, GracyReply):
+            parts.append(f"[回复:{seg.message_id}]")
+        elif isinstance(seg, GracyFile):
+            if seg.file_path:
+                parts.append(f"[文件:{seg.file_path}]")
+            elif seg.url:
+                parts.append(f"[文件:{seg.url}]")
     return "".join(parts)
 
 
@@ -279,6 +308,10 @@ def _convert_segments(segments: List[GracyMsg]) -> tuple:
             # 提取 msg_id 用于被动回复
             reply_msg_id = seg.message_id
         elif isinstance(seg, GracyFile):
+            _logger.warning(f"不支持的消息段类型: {type(seg).__name__}")
+        elif isinstance(seg, GracyVideo):
+            _logger.warning(f"不支持的消息段类型: {type(seg).__name__}")
+        elif isinstance(seg, GracyForward):
             _logger.warning(f"不支持的消息段类型: {type(seg).__name__}")
 
     content = "".join(text_parts)

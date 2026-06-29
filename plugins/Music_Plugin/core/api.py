@@ -16,17 +16,9 @@ from typing import Dict, List, Optional
 
 import httpx
 
-from graci import plugin_manager
+from graci import get_logger, plugin_manager
 
-_logger = None
-
-
-def _get_logger():
-    global _logger
-    if _logger is None:
-        import logging
-        _logger = logging.getLogger("Gracy.Music")
-    return _logger
+logger = get_logger("Music.api")
 
 
 def _load_cfg() -> dict:
@@ -78,8 +70,7 @@ async def search_songs(keyword: str, page: int = 1) -> (List[SearchItem], dict):
     params = {"msg": keyword, "apikey": apikey, "page": page}
     url = f"{base}?{urllib.parse.urlencode(params)}"
 
-    log = _get_logger()
-    log.info(f"[搜索] 关键词: {keyword}, page={page}")
+    logger.info(f"[搜索] 关键词: {keyword}, page={page}")
 
     async with httpx.AsyncClient(timeout=timeout) as client:
         resp = await client.get(url, headers={"User-Agent": "Mozilla/5.0"})
@@ -87,7 +78,7 @@ async def search_songs(keyword: str, page: int = 1) -> (List[SearchItem], dict):
         body = resp.json()
 
     if body.get("code") != 200:
-        log.error(f"[搜索] API返回失败: {body.get('message', 'unknown')}")
+        logger.error(f"[搜索] API返回失败: {body.get('message', 'unknown')}")
         return [], {}
 
     results = []
@@ -99,7 +90,7 @@ async def search_songs(keyword: str, page: int = 1) -> (List[SearchItem], dict):
         ))
 
     pagination = body.get("pagination", {})
-    log.info(f"[搜索] 找到 {len(results)} 条结果 (共{pagination.get('total_pages', '?')}页)")
+    logger.info(f"[搜索] 找到 {len(results)} 条结果 (共{pagination.get('total_pages', '?')}页)")
     return results, pagination
 
 
@@ -113,8 +104,7 @@ async def play_song(keyword: str, song_id: int) -> Optional[SongPlayData]:
     params = {"msg": keyword, "id": song_id, "apikey": apikey}
     url = f"{base}?{urllib.parse.urlencode(params)}"
 
-    log = _get_logger()
-    log.info(f"[播放] keyword={keyword}, id={song_id}")
+    logger.info(f"[播放] keyword={keyword}, id={song_id}")
 
     async with httpx.AsyncClient(timeout=timeout) as client:
         resp = await client.get(url, headers={"User-Agent": "Mozilla/5.0"})
@@ -122,7 +112,7 @@ async def play_song(keyword: str, song_id: int) -> Optional[SongPlayData]:
         body = resp.json()
 
     if body.get("code") != 200:
-        log.error(f"[播放] API返回失败: {body.get('message', 'unknown')}")
+        logger.error(f"[播放] API返回失败: {body.get('message', 'unknown')}")
         return None
 
     return SongPlayData(body.get("data", {}))

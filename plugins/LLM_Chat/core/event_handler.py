@@ -10,6 +10,7 @@ from .database import (
 )
 from .api_handler import call_llm_api, load_config, save_config
 from .web_search import search_web, extract_urls
+from graci import get_logger
 
 def is_master(user_id, master_id):
     return str(user_id) == str(master_id)
@@ -301,8 +302,7 @@ async def handle_ai_chat(bot, target_id, chat_type, message, user_id, nickname, 
                 await bot(target_id, GracyVoice(file_path=audio_path), chat_type=chat_type)
                 return
         except Exception as e:
-            import logging
-            logging.getLogger("Gracy.LLM_Chat.TTS").warning(f"TTS 发送失败，降级为文本: {e}")
+            get_logger("LLM_Chat.TTS").warning(f"TTS 发送失败，降级为文本: {e}")
     
     await bot(target_id, reply, chat_type=chat_type)
 
@@ -338,10 +338,9 @@ async def _extract_image_urls(raw_event) -> list:
 
 
 async def _fetch_via_napcat(file_id: str) -> str:
-    import logging
     import base64
     import os as _os
-    log = logging.getLogger("Gracy.LLMChat")
+    log = get_logger("LLMChat")
     try:
         from graci import gracy_call_api
         log.info(f"[图片] 通过NapCat获取本地路径: file={file_id[:30]}...")

@@ -5,7 +5,7 @@ graci — GracyBot 插件公共 API（外观层）
 框架内部重构时只改本文件转发，插件零改动。
 
 用法:
-    from graci import GracyText, GracyImage, GracyVoice, GracyAt, GracyReply, GracyMsg, GracyFile
+    from graci import GracyText, GracyImage, GracyVoice, GracyAt, GracyReply, GracyMsg, GracyFile, GracyVideo, GracyForward
     from graci import gracy_send_msg, gracy_call_api
     from graci import on_command, on_regex, on_keyword
     from graci import plugin_handler, require_permission, rate_limit, cooldown
@@ -20,6 +20,8 @@ from core.gracy_adapter.message import GracyAt
 from core.gracy_adapter.message import GracyReply
 from core.gracy_adapter.message import GracyMsg
 from core.gracy_adapter.message import GracyFile
+from core.gracy_adapter.message import GracyVideo
+from core.gracy_adapter.message import GracyForward
 
 # ── 发送函数 ──
 from core.gracy_adapter.send import gracy_send_msg
@@ -49,10 +51,15 @@ from core.config import get_current_robot_id
 
 # ── 插件管理 ──
 from core.plugin_manager import plugin_manager
+from core.config_manager import config_manager
 
 # ── 日志 ──
 from core.utils import logger
 from core.decorators.logger import with_logger, log_attrs
+
+def get_logger(name: str):
+    """插件用：获取 Gracy 子日志器，终端显示 [Gracy] [name]"""
+    return logger.getChild(name)
 
 # ── 安全 ──
 from core.security import sanitize_log
@@ -74,7 +81,7 @@ from core.gracy_adapter.identity import IdentityTag
 
 __all__ = [
     # 消息类型
-    "GracyText", "GracyImage", "GracyVoice", "GracyAt", "GracyReply", "GracyMsg", "GracyFile",
+    "GracyText", "GracyImage", "GracyVoice", "GracyAt", "GracyReply", "GracyMsg", "GracyFile", "GracyVideo", "GracyForward",
     # 发送函数
     "gracy_send_msg", "gracy_call_api", "gracy_get_platform_info",
     # 装饰器
@@ -88,7 +95,7 @@ __all__ = [
     "BOT_VERSION", "MASTER_ID", "ROBOT_ID", "ROBOT_START_TIME", "LOG_ENCODING",
     "get_current_master_id", "get_current_robot_id",
     # 核心服务
-    "plugin_manager", "logger", "with_logger", "log_attrs",
+    "plugin_manager", "config_manager", "logger", "get_logger", "with_logger", "log_attrs",
     # 安全 / 监控
     "sanitize_log", "monitor_manager",
     # CLI
