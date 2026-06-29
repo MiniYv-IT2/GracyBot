@@ -37,27 +37,6 @@
 - **`@plugin_handler`**：去掉重复的 `[装饰器] 执行成功` 日志（已由 PluginHandler 记录）
 - 统一格式：`[Gracy] [Pipeline] - INFO - [PluginName] 执行成功 命令=xxx 耗时=xxx`
 
-## 附：GracyUI / Gracone 日志分类独立性
-
-GracyUI 和 Gracone 是系统插件，应有独立日志分类（如 Tool 的 `[Tool]`），不走 `[Gracy]` 前缀。
-
-**目标：**
-| 插件 | Logger 名 | 显示 |
-|------|-----------|------|
-| GracyUI | `logging.getLogger("GracyUI")` | `[GracyUI]` |
-| Gracone | `logging.getLogger("Gracone")` | `[Gracone]` |
-
-**当前问题：**
-- 两个插件都用 `get_logger("Xxx")` → `Gracy.Xxx` → 匹配 `Gracy.` 前缀 → 显示 `[Gracy] [Xxx]`
-- `log_tool.py` 中 `CATEGORY_PREFIXES` 有 `"GracyUI": "GracyUI"` 但被 `"Gracy."` 前缀抢先匹配，实际不生效
-- `CATEGORY_PREFIXES` 中 `"Gracone": "Gracy"` 需要改为 `"Gracone": "Gracone"`
-
-**需改动的文件：**
-- `plugins/GracyUI_plugin/GracyUI_plugin.py`：`get_logger("GracyUI")` → `logging.getLogger("GracyUI")`
-- `plugins/Gracone_Plugin/gracone_core.py`：`get_logger("Gracone")` → `logging.getLogger("Gracone")`
-- `core/tools/log_tool.py`：`"Gracone": "Gracy"` → `"Gracone": "Gracone"`
-- 其他 Gracone 子模块中用 `get_logger("Gracone.xxx")` 的也需同步改为 `logging.getLogger("Gracone.xxx")`
-
 ## 相关文件
 
 - `core/pipeline/plugin_handler.py:13` — `_logger = logging.getLogger("Core.Pipeline")`
