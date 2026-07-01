@@ -40,8 +40,8 @@ def with_session(func: Callable) -> Callable:
         )
 
         session = gracy_get_or_create_session(
-            user_id=ctx.sender_id,
-            group_id=ctx.target_id if ctx.chat_type == "group" else None,
+            sender_id=ctx.sender_id,
+            target_id=ctx.target_id if ctx.chat_type == "group" else None,
         )
         ctx.session = session
 

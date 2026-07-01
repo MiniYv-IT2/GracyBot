@@ -32,14 +32,14 @@ class InputValidator:
         return bool(id_str and isinstance(id_str, str) and len(id_str) > 0)
     
     @staticmethod
-    def is_valid_qq(user_id: str) -> bool:
-        """@deprecated: 请使用 is_valid_id，保留向后兼容"""
+    def is_valid_user_id(user_id: str) -> bool:
+        """@deprecated: 已重命名为 is_valid_user_id，请使用 is_valid_id，保留向后兼容"""
         return InputValidator.is_valid_id(user_id)
     
     @staticmethod
-    def is_valid_group_id(group_id: str) -> bool:
-        """@deprecated: 请使用 is_valid_id，保留向后兼容"""
-        return InputValidator.is_valid_id(group_id)
+    def is_valid_target_id(target_id: str) -> bool:
+        """@deprecated: 已重命名为 is_valid_target_id，请使用 is_valid_id，保留向后兼容"""
+        return InputValidator.is_valid_id(target_id)
     
     @staticmethod
     def is_valid_command(cmd: str) -> bool:
@@ -214,7 +214,7 @@ class SecurityManager:
     
     def _load_config(self):
         """从配置管理器加载安全配置"""
-        # 从配置中加载主人QQ
+        # 从配置中加载主人 ID
         master_id = config_manager.get('master_id', '')
         if master_id:
             self.user_roles[str(master_id)] = UserRole.MASTER
@@ -222,7 +222,7 @@ class SecurityManager:
         # 移除管理员角色，不再加载管理员列表
     
     def refresh_config(self):
-        """刷新安全配置（bot启动时调用，重新加载主人QQ等）"""
+        """刷新安全配置（bot启动时调用，重新加载主人 ID 等）"""
         self._load_config()
 
     def get_user_role(self, user_id: str) -> UserRole:
@@ -235,8 +235,8 @@ class SecurityManager:
         if user_id in self.user_roles:
             return self.user_roles[user_id]
         
-        # 检查是否机器人自身（从配置中获取自己的 ID，兼容 self_id 和 self_qq）
-        self_id = config_manager.get('self_id', '') or config_manager.get('self_qq', '')
+        # 检查是否机器人自身（从配置中获取自己的 ID，使用 robot_id）
+        self_id = config_manager.get('robot_id', '')
         if self_id and str(user_id) == str(self_id):
             return UserRole.SELF
         

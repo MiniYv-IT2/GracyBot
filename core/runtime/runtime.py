@@ -1,6 +1,6 @@
 """Runtime 数据类、全局注册表、上下文透传
 
-每个 QQ 账号 = 一个 Runtime 实例，所有身份信息绑定在此。
+每个机器人账号 = 一个 Runtime 实例，所有身份信息绑定在此。
 消息链路全程通过 RuntimeContext（contextvars）透传当前 Runtime。
 """
 
@@ -21,7 +21,7 @@ _logger = logging.getLogger("Core.Runtime")
 
 @dataclass
 class Runtime:
-    """一个 QQ 账号 = 一个 Runtime 实例
+    """一个机器人账号 = 一个 Runtime 实例
 
     每个实例拥有独立的 Pipeline、日志器、数据目录。
     上游（EventBus → Pipeline）在消息处理时通过 RuntimeRegistry
@@ -108,7 +108,7 @@ class RuntimeRegistry:
 
     @classmethod
     def get_by_robot_id(cls, robot_id: str) -> Optional[Runtime]:
-        """按 QQ 号查找 Runtime"""
+        """按 robot_id 查找 Runtime"""
         with cls._lock:
             return cls._by_robot_id.get(robot_id)
 

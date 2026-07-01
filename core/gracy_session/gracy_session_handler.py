@@ -27,11 +27,6 @@ def _extract_target_user(raw_msg: str) -> Optional[str]:
     - /清理会话 123456
     """
     import re
-    # 先尝试匹配 [CQ:at,qq=xxxxx]
-    at_match = re.search(r'\[CQ:at,qq=(\d+)\]', raw_msg)
-    if at_match:
-        return at_match.group(1)
-
     # 尝试匹配 @xxxxx 或 纯数字
     text_match = re.search(r'@(\d+)', raw_msg)
     if text_match:
@@ -118,30 +113,24 @@ def _handle_clear_session(
     from core.gracy_session.gracy_session_manager import gracy_get_session_manager
 
     manager = gracy_get_session_manager()
-    target_str = ""
-
-    # 群聊模式下，获取群ID
-    group_id = None
-    if chat_type == "group":
-        group_id = target_id
 
     # 尝试清理会话
-    success = manager.destroy_session(target_sender, group_id)
+    success = manager.destroy_session(target_sender, target_id if chat_type == "group" else None)
 
     if success:
         reply = f"✅ 会话已清理成功！"
         target_str = f"用户{target_sender}"
-        if group_id:
-            target_str += f" 在群{group_id}"
+        if chat_type == "group":
+            target_str += f" 在群{target_id}"
         logger.info(f"[会话管理] {target_str} 的会话已清理")
     else:
         # 会话不存在，也视为成功（创建新的）
         from core.gracy_session import gracy_create_session
-        gracy_create_session(target_sender, group_id)
+        gracy_create_session(target_sender, target_id if chat_type == "group" else None)
         reply = f"✅ 会话已重置！"
         target_str = f"用户{target_sender}"
-        if group_id:
-            target_str += f" 在群{group_id}"
+        if chat_type == "group":
+            target_str += f" 在群{target_id}"
         logger.info(f"[会话管理] {target_str} 会话不存在，已创建新会话")
 
     send_msg_func(target_id, GracyText(text=reply), chat_type=chat_type)
@@ -158,8 +147,7 @@ def _handle_view_session(
     from core.gracy_adapter.message import GracyText
     from core.gracy_session import gracy_get_session
 
-    group_id = target_id if chat_type == "group" else None
-    session = gracy_get_session(target_sender, group_id)
+    session = gracy_get_session(target_sender, target_id if chat_type == "group" else None)
 
     if session is None:
         reply = f"📭 当前没有活跃会话"
@@ -172,8 +160,8 @@ def _handle_view_session(
     is_expired = "是" if session.is_expired() else "否"
     expire_info = "永不过期" if session.expires_at is None else f"{session.expire_minutes}分钟"
 
-    group_info = f"群组: {group_id}" if group_id else "私聊"
-    session_type = "共享会话" if group_id and session.sender_id is None else "独立会话"
+    group_info = f"群组: {target_id}" if chat_type == "group" else "私聊"
+    session_type = "共享会话" if chat_type == "group" and session.sender_id is None else "独立会话"
 
     lines = [
         f"📋 会话信息 ({group_info})",

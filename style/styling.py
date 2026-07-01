@@ -20,10 +20,8 @@ class StylingManager:
     def __init__(self):
         # 上下文键映射
         self.context_key_mapping = {
-            'self_id': '机器人ID', 'user_id': '用户ID', 'time': '消息时间',
-            'message_id': '消息ID', 'message': '消息内容', 'raw_message': '原始消息',
-            'group_id': '群组ID', 'message_type': '消息类型', 'post_type': '事件类型',
-            'notice_type': '通知类型', 'sub_type': '子类型', 'operator_id': '操作者ID',
+            'time': '消息时间',
+            'message_id': '消息ID', 'message': '消息内容',
             'file': '文件信息', 'content_preview': '内容预览', 'permission': '权限级别',
             'target': '目标用户', 'client_ip': '客户端IP', 'request_id': '请求ID',
             'path': '请求路径', 'timestamp': '时间戳', 'role': '用户角色',
@@ -40,20 +38,8 @@ class StylingManager:
             'guest': '访客', 'user': '用户', 'true': '成功', 'false': '失败', 'True': '成功', 'False': '失败'
         }
         
-        # OneBot 特定上下文值映射
-        self._context_values_onebot = {
-            'group_upload': '群文件上传', 'group_admin': '群管理变更',
-            'group_ban': '群禁言', 'friend_add': '好友添加',
-            'group_recall': '群消息撤回', 'friend_recall': '好友消息撤回',
-            'poke': '戳一戳', 'lucky_king': '运气王', 'honor': '群荣誉变更',
-            'group_card': '群名片变更', 'offline_file': '离线文件', 'client_status': '客户端状态',
-            'essence': '精华消息', 'system': '系统消息', 'request': '请求事件',
-            'notice': '通知事件', 'meta_event': '元事件', 'message': '消息事件',
-            'basic_query': '基础查询', 'use_plugins': '使用插件'
-        }
-        
-        # 向后兼容：合并映射（优先通用映射）
-        self.context_value_mapping = {**self._context_values_onebot, **self._context_values_common}
+        # 向后兼容：合并映射
+        self.context_value_mapping = self._context_values_common
         
         # 通用消息关键词映射
         self._message_mapping_common = {
@@ -64,14 +50,8 @@ class StylingManager:
             '无日志消息': '无日志消息',
         }
         
-        # OneBot 特定消息关键词映射
-        self._message_mapping_onebot = {
-            '成功发送private消息': '私聊消息发送成功',
-            '成功发送group消息': '群聊消息发送成功',
-        }
-        
         # 向后兼容：合并映射
-        self.message_mapping = {**self._message_mapping_onebot, **self._message_mapping_common}
+        self.message_mapping = self._message_mapping_common
         
         # 消息类型格式化映射
         self.message_type_formatting = {
@@ -91,10 +71,9 @@ class StylingManager:
         chinese_parts = []
         # 字段名直接使用中文，无需翻译映射
         key_names = {
-            'self_id': '机器人ID', 'sender_id': '用户ID', 'time': '时间',
+            'sender_id': '用户ID', 'time': '时间',
             'message_id': '消息ID', 'message': '消息内容', 'raw_text': '消息',
-            'target_id': '群组ID', 'chat_type': '消息类型', 'post_type': '事件类型',
-            'notice_type': '通知类型', 'sub_type': '子类型', 'operator_id': '操作者ID',
+            'target_id': '群组ID', 'chat_type': '消息类型',
             'file': '文件信息', 'content_preview': '内容预览', 'permission': '权限级别',
             'target': '目标', 'client_ip': '客户端IP', 'request_id': '请求ID',
             'path': '路径', 'timestamp': '时间', 'role': '角色',
@@ -153,13 +132,13 @@ class StylingManager:
         for key, value in json_data.items():
             chinese_key = self.context_key_mapping.get(key, key)
             
-            if key in ['self_id', 'user_id', 'message_id']:
+            if key in ['message_id']:
                 # 统一ID加密逻辑：将数字ID转换为"用户****后4位"格式
                 formatted_value = self._encrypt_user_id(value)
-            elif key == 'message_type':
+            elif key in ('message_type', 'chat_type'):
                 message_type = '私聊' if value == 'private' else '群聊' if value == 'group' else value
                 formatted_value = message_type
-            elif key in ['message', 'raw_message'] and isinstance(value, str):
+            elif key in ['message', 'raw_message', 'raw_text'] and isinstance(value, str):
                 formatted_value = value[:27] + '...' if len(value) > 30 else value
             else:
                 formatted_value = str(value)
@@ -187,12 +166,7 @@ class StylingManager:
             if old_format in message:
                 message = message.replace(old_format, new_format)
         
-        # 先替换 OneBot 特定关键词（更具体的模式优先）
-        for eng, chn in self._message_mapping_onebot.items():
-            if eng in message:
-                message = message.replace(eng, chn)
-        
-        # 再替换通用关键词
+        # 替换通用关键词
         for eng, chn in self._message_mapping_common.items():
             if eng in message:
                 message = message.replace(eng, chn)
@@ -202,14 +176,10 @@ class StylingManager:
 
     
     def _translate_value(self, value: Any) -> str:
-        """翻译值：先查通用映射，再查 OneBot 映射"""
+        """翻译值：查通用映射，无匹配返回原值"""
         str_value = str(value)
-        # 先查通用映射
         if str_value in self._context_values_common:
             return self._context_values_common[str_value]
-        # 再查 OneBot 映射
-        if str_value in self._context_values_onebot:
-            return self._context_values_onebot[str_value]
         # 都没有匹配，返回原值
         return value
     

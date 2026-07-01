@@ -18,7 +18,7 @@ class PluginContext:
 
     # ── 消息来源 ──
     sender_id: str = ""                    # 发送者 QQ/ID
-    target_id: str = ""                    # 目标 ID（私聊=发送者, 群聊=群号）
+    target_id: str = ""                    # 目标 ID（私聊=发送者, 群聊=群组 ID）
     chat_type: str = "private"             # "private" | "group"
     nickname: str = ""                     # 发送者昵称
 
