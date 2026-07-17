@@ -1,0 +1,81 @@
+"""HTTP 消息发送 — 单聊/群聊
+
+低层 HTTP API 封装，发送文本/富媒体消息到 QQ 官方 API。
+"""
+
+import logging
+from typing import Optional
+
+_logger = logging.getLogger("Adapter.QQOfficial.message")
+
+
+class MessageMixin:
+    """消息发送 Mixin — 依赖 AuthMixin 的 token 和 api_base"""
+
+    async def send_c2c_message(
+        self,
+        openid: str,
+        msg_type: int,
+        content: str = "",
+        media: Optional[dict] = None,
+        msg_id: str = "",
+    ) -> bool:
+        url = f"{self._api_base}/v2/users/{openid}/messages"
+        return await self._send_message(url, msg_type, content, media, msg_id)
+
+    async def send_group_message(
+        self,
+        group_openid: str,
+        msg_type: int,
+        content: str = "",
+        media: Optional[dict] = None,
+        msg_id: str = "",
+    ) -> bool:
+        url = f"{self._api_base}/v2/groups/{group_openid}/messages"
+        return await self._send_message(url, msg_type, content, media, msg_id)
+
+    async def _send_message(
+        self,
+        url: str,
+        msg_type: int,
+        content: str,
+        media: Optional[dict],
+        msg_id: str,
+    ) -> bool:
+        token = await self.get_access_token()
+        if not token:
+            _logger.error("发送消息失败: 无有效 Token")
+            return False
+
+        headers = {
+            "Authorization": f"QQBot {token}",
+            "Content-Type": "application/json",
+        }
+
+        # 递增序列号（防止消息去重）
+        if not hasattr(self, '_msg_seq'):
+            self._msg_seq = 1
+        self._msg_seq = (self._msg_seq % 100000) + 1
+
+        payload = {
+            "msg_type": msg_type,
+            "content": content,
+            "msg_seq": self._msg_seq,
+        }
+
+        if msg_id:
+            payload["msg_id"] = msg_id
+        if media:
+            payload["media"] = media
+
+        try:
+            session = await self._get_session()
+            async with session.post(url, json=payload, headers=headers) as resp:
+                if resp.status == 200:
+                    return True
+                error_body = await resp.text()
+                _logger.error(f"发送消息失败: {resp.status} {error_body}")
+                return False
+        except Exception as e:
+            _logger.error(f"发送消息异常: {e}")
+            return False

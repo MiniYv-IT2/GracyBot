@@ -1,0 +1,80 @@
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "gracybot"
+version = "2.0.0.dev0"
+description = "GracyBot - 个性化定制化QQ机器人框架"
+readme = "README.md"
+requires-python = ">=3.11"
+license = {text = "MIT"}
+authors = [
+    {name = "小禹 / MiniYv", email = "bc333333@163.com"},
+]
+keywords = ["qq", "bot", "chatbot", "napcat", "onebot", "qqbot"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Communications :: Chat",
+    "Operating System :: OS Independent",
+]
+dependencies = [
+    "typer>=0.15.0",
+    "quart>=0.20.0",
+    "hypercorn>=0.17.0",
+    "aiohttp>=3.9.0",
+    "requests>=2.31.0",
+    "websockets>=12.0",
+    "tomli>=2.0.0",
+    "openai>=1.0.0",
+    "Pillow>=10.0.0",
+    "numpy>=1.24.0",
+    "psutil>=5.9.0",
+    "py-cpuinfo>=9.0.0",
+    "mss>=9.0.0",
+]
+
+[project.optional-dependencies]
+llm = [
+    "aiosqlite>=0.20.0",
+]
+search = [
+    "playwright>=1.40.0",
+]
+all = [
+    "gracybot[llm,search]",
+]
+
+[project.urls]
+Homepage = "https://github.com/MiniYv/GracyBot"
+Repository = "https://github.com/MiniYv/GracyBot"
+
+[project.scripts]
+gracybot = "gracybot.core.tools.cli.main:app"
+gracy = "gracybot.core.tools.cli.main:app"
+
+[tool.setuptools.packages.find]
+include = ["gracybot*", "res*"]
+
+[tool.setuptools]
+include-package-data = false
+
+[tool.setuptools.package-data]
+"gracybot.core" = ["*.json", "*.toml"]
+"res" = ["*.py", "*.png", "*.otf", "**/*.json"]
+"gracybot.plugins.Easysearch" = ["*.toml"]
+"gracybot.plugins.Help_plugin" = ["*.toml"]
+"gracybot.plugins.LLM_Chat" = ["*.toml", "*.json"]
+"gracybot.plugins.Screenshot" = ["*.toml"]
+"gracybot.plugins.Update_Plugin" = ["*.toml"]
+"gracybot.plugins.Xiaoyu_plugin" = ["*.toml"]
+"gracybot.plugins.MonitorPlugin" = ["*.toml"]
+"gracybot.plugins.SysInfo_plugin" = ["*.toml"]
+"gracybot.plugins.ExamplePlugin" = ["*.toml"]
+"gracybot.plugins.GracyUI_plugin" = ["*.toml", "frontend/dist/*", "frontend/dist/assets/*"]

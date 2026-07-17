@@ -1,0 +1,22 @@
+[plugin]
+name        = "示例插件"
+version     = "2.0.0"
+author      = "GracyBot开发团队"
+description = "10层架构模板 / 实验场 — 展示新风格插件开发完整模式"
+
+[handler]
+entry       = "handle_echo"
+
+[trigger]
+commands       = ["/echo", "/say", "/owner", "/joke", "/meme", "/botinfo"]
+chat_type      = ["private", "group"]
+permission     = "all"
+is_at_required = false
+
+[trigger.command_descriptions]
+"/echo"   = "复读机：/echo <内容>"
+"/say"    = "同 /echo"
+"/owner"  = "查看 Bot 状态（仅主人）"
+"/joke"   = "随机冷笑话（每分钟限 3 次）"
+"/meme"   = "发送一张示例图片"
+"/botinfo" = "查询平台信息"

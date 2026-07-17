@@ -1,0 +1,14 @@
+[plugin]
+name        = "MonitorPlugin"
+version     = "1.0.0"
+author      = "GracyBot开发团队"
+description = "查看系统状态和性能指标的监控插件"
+
+[handler]
+entry       = "handle_monitor"
+
+[trigger]
+commands       = ["/状态", "/监控", "/性能", "/健康", "/插件状态", "/系统状态"]
+chat_type      = ["private", "group"]
+permission     = "all"
+is_at_required = false

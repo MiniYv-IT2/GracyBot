@@ -1,0 +1,85 @@
+# ─── 运行数据目录（配置/实例/日志/插件数据） ───
+storage/
+
+# ─── 保留模板 ───
+!config.template.json
+
+# ─── Python ───
+__pycache__/
+*.py[cod]
+*.so
+*.egg-info/
+dist/
+build/
+
+# ─── 虚拟环境 ───
+.venv/
+venv/
+env/
+
+# ─── 数据库 ───
+*.db
+*.sqlite
+gracybot/plugins/LLM_Chat/data/
+
+# ─── 缓存 & 临时文件 ───
+**/data/cache/
+**/temp_*
+debug_commands.txt
+*.backup
+
+# ─── 截图缓存 ───
+gracybot/plugins/Screenshot/data/image/
+gracybot/plugins/Easysearch/data/
+gracybot/plugins/Help_plugin/data/
+gracybot/plugins/Xiaoyu_plugin/data/
+
+# ─── 日志 ───
+logs/
+*.log
+
+# ─── 热重载 & 缓存 ───
+hotreload.json
+.restart_flag
+
+# ─── Trae AI IDE ───
+.trae/
+
+# ─── IDE ───
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# ─── 系统 ───
+.DS_Store
+Thumbs.db
+
+# ─── 备份文件 ───
+*.zip
+*.bak
+
+# ─── 临时文件 ───
+tmp/
+temp/
+*.tmp
+
+# ─── 前端依赖（GracyUI dist 保留） ───
+node_modules/
+
+# ─── 无关目录 ───
+.dbg/
+_v2_models/
+dist_extract/
+gracy_framework/
+
+# ─── 不应提交的插件 ───
+gracybot/plugins/Genshin_Plugin/
+gracybot/plugins/style/
+
+# ─── 独立项目（不纳入管理） ───
+GracyBot-GUI/
+AGENTS.md
+
+# ─── 用户管理的插件禁用状态（不提交） ───
+.gracybot_disabled.json

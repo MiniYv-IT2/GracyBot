@@ -1,0 +1,21 @@
+{
+  "default_engine": "bing",
+  "timeout": 20,
+  "engines": {
+    "bing": {
+      "name": "必应"
+    },
+    "baidu": {
+      "name": "百度"
+    },
+    "google": {
+      "name": "谷歌"
+    },
+    "sogou": {
+      "name": "搜狗"
+    },
+    "yandex": {
+      "name": "Yandex"
+    }
+  }
+}

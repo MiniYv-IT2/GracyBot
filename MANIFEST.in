@@ -1,0 +1,28 @@
+# ─── 模板配置文件 ───
+include config.template.json
+include gracybot/core/gracy_adapter/onebot/onebot_config.template.json
+
+# ─── 前端构建产物（GracyUI 面板） ───
+recursive-include gracybot/plugins/GracyUI_plugin/frontend/dist *
+
+# ─── 插件元数据 ───
+recursive-include gracybot/plugins *.toml
+recursive-include gracybot/plugins *.txt
+recursive-include gracybot/plugins *.md
+
+# ─── 文档 ───
+include README.md
+
+# ─── 样式资源 ───
+recursive-include res *.py
+recursive-include res *.png
+recursive-include res *.otf
+recursive-include res *.json
+
+# ─── 排除大型无用目录 ───
+prune gracybot/plugins/GracyUI_plugin/frontend/node_modules
+prune gracybot/plugins/Easysearch/data
+prune gracybot/plugins/Screenshot/data/image
+prune gracybot/plugins/Help_plugin/data
+prune gracybot/plugins/Xiaoyu_plugin/data
+prune gracybot/plugins/LLM_Chat/data

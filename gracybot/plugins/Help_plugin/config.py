@@ -1,0 +1,24 @@
+"""
+插件配置
+"""
+from typing import Dict, Any
+
+DEFAULT_CONFIG: Dict[str, Any] = {
+    "show_builtin_cmds": {
+        "description": "显示内置插件命令",
+        "type": "bool",
+        "default": False
+    },
+    "custom_cmds": {
+        "description": "自定义的额外命令",
+        "hint": "一些通过正则或者监听器形成的命令无法检测，可通过自定义方式补充，格式为\"命令: 一段描述\"，分隔符为英文逗号或#",
+        "type": "list",
+        "default": []
+    },
+    "plugin_blacklist": {
+        "description": "插件黑名单",
+        "hint": "填写插件名称(区分大小写)，如：astrbot_plugin_help，黑名单里的插件不显示帮助",
+        "type": "list",
+        "default": []
+    }
+}

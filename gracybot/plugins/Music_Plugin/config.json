@@ -1,0 +1,7 @@
+{
+  "apikey": "",
+  "api_url": "https://api.nycnm.cn/api/v2/diange",
+  "timeout": 10,
+  "page_size": 10,
+  "cache_max_days": 7
+}

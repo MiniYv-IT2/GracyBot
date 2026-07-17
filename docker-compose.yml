@@ -1,0 +1,20 @@
+services:
+  gracybot:
+    build: .
+    image: gracybot:latest
+    container_name: gracybot
+    ports:
+      - "5090:5090"
+    volumes:
+      # 持久化：配置 / 实例 / 日志
+      - gracybot_storage:/gracybot/storage
+      # 可选：挂载自定义插件目录（自动链接到 gracybot/plugins_custom/）
+      - ./plugins_custom:/gracybot/plugins_custom:ro
+    environment:
+      - TZ=Asia/Shanghai
+      # GRACYBOT_HOME 不设则自动检测 CWD（/gracybot 下有 bot.py）
+    restart: unless-stopped
+    stop_grace_period: 30s
+
+volumes:
+  gracybot_storage:

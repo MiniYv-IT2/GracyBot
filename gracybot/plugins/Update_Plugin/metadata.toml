@@ -1,0 +1,14 @@
+[plugin]
+name        = "Update_Plugin"
+version     = "1.0.0"
+author      = "GracyBot开发团队"
+description = "系统更新插件，用于检测GitHub仓库更新、版本管理和自动/手动更新控制"
+
+[handler]
+entry       = "handle_update_plugin"
+
+[trigger]
+commands       = ["/系统更新", "/确认更新", "/取消更新", "/开启自动更新", "/关闭自动更新"]
+chat_type      = ["private", "group"]
+permission     = "master"
+is_at_required = false

@@ -1,0 +1,21 @@
+[plugin]
+name        = "音乐点歌插件"
+version     = "1.1.0"
+author      = "GracyBot开发团队"
+description = "QQ音乐搜索与点歌插件，支持搜索歌名、查看详情、获取播放链接，搜索结果以精美图片展示"
+
+[handler]
+entry       = "handle_music"
+
+[trigger]
+commands       = ["/点歌", "/qq音乐", "/选择", "/歌曲详情", "/清理缓存"]
+chat_type      = ["private", "group"]
+permission     = "all"
+is_at_required = false
+
+[trigger.command_descriptions]
+"/点歌"      = "搜索QQ音乐歌曲（例：/点歌 周深）"
+"/qq音乐"    = "同/点歌，搜索QQ音乐"
+"/选择"      = "从上一次搜索结果中选择歌曲（例：/选择 1）"
+"/歌曲详情"  = "查看上一首选中歌曲的详情"
+"/清理缓存"  = "清理超过指定天数的缓存文件（默认7天）"
