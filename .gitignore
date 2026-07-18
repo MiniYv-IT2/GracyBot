@@ -59,6 +59,10 @@ Thumbs.db
 *.zip
 *.bak
 
+# ─── Docker 镜像包（不跟踪） ───
+gracybot-*.tar
+gracybot-*.tar.gz
+
 # ─── 临时文件 ───
 tmp/
 temp/
