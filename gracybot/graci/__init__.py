@@ -28,6 +28,7 @@ from gracybot.graci.core_api import (
     plugin_manager, config_manager,
     logger, get_logger,
     sanitize_log, monitor_manager,
+    get_logs_dir, get_storage_dir, get_res_config_dir,
     register_cli_command,
     Quart, send_from_directory, Blueprint, request, Config, serve,
     Stage, RuntimeRegistry, GracyEvent, IdentityTag,
@@ -50,6 +51,8 @@ __all__ = [
     "get_current_master_id", "get_current_robot_id",
     # 核心服务
     "plugin_manager", "config_manager", "logger", "get_logger", "with_logger", "log_attrs",
+    # 路径工具
+    "get_logs_dir", "get_storage_dir", "get_res_config_dir",
     # 安全 / 监控
     "sanitize_log", "monitor_manager",
     # CLI

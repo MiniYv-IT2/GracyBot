@@ -14,7 +14,7 @@ import types
 import importlib.util
 from pathlib import Path
 
-from graci import Stage, RuntimeRegistry, get_logger
+from graci import Stage, RuntimeRegistry, get_logger, get_storage_dir
 from bridge.matcher_bridge import matcher_manager, dispatch_event, inject_into_nonebot
 
 logger = get_logger("Gracone")
@@ -33,7 +33,6 @@ _plugin_dir = Path(__file__).parent / "nonebot_plugins"
 # 禁用列表持久化
 # ════════════════════════════════════════════════════
 
-from gracybot.core.tools.paths import get_storage_dir
 
 
 def _get_disabled_file() -> str:

@@ -1,8 +1,7 @@
 ﻿import json
 import os
 from openai import AsyncOpenAI
-from graci import plugin_manager, get_logger
-from gracybot.core.tools.paths import get_res_config_dir
+from graci import plugin_manager, get_logger, get_res_config_dir
 
 logger = get_logger("LLMChat")
 

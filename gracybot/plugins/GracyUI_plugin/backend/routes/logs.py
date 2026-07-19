@@ -3,11 +3,10 @@ import os
 import re
 import time as _time_module
 from datetime import datetime
-from graci import Blueprint, request
+from graci import Blueprint, request, get_logs_dir
 
 logs_bp = Blueprint("logs", __name__, url_prefix="/api")
 
-from gracybot.core.tools.paths import get_logs_dir
 _LOG_DIR = get_logs_dir()
 
 # Flask 启动时间 — 只显示此时间之后的日志

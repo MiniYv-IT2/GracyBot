@@ -28,6 +28,11 @@ def get_logger(name: str):
 # ── 安全 ──
 from gracybot.core.security import sanitize_log
 
+# ── 路径工具 ──
+from gracybot.core.tools.paths import get_logs_dir
+from gracybot.core.tools.paths import get_storage_dir
+from gracybot.core.tools.paths import get_res_config_dir
+
 # ── 监控 ──
 from gracybot.core.monitor import monitor_manager
 
