@@ -25,7 +25,6 @@ from .system import (
     setup_autostart,
     uninstall_bot,
     backup_bot,
-    run_bot_process,
     stop_bot_process,
 )
 from gracybot.core.tools.paths import get_config_path, get_plugins_dir
@@ -86,36 +85,26 @@ def cmd_run(
     no_webui: bool = typer.Option(False, "--no-webui", help="不启动 Web 面板"),
 ):
     """启动机器人"""
-    root = _ensure_root()
+    import asyncio
+    from gracybot.core.main import run_bot
 
-    if is_local_project(root):
-        # 本地项目模式：用 bot.py 子进程启动
-        run_bot_process(root, debug=debug, no_webui=no_webui)
-    else:
-        # pip 安装模式：直接运行（无需 bot.py）
-        import asyncio
-        from gracybot.core.main import run_bot
+    if debug:
+        os.environ["GRACY_DEBUG"] = "1"
+    elif "GRACY_DEBUG" in os.environ:
+        del os.environ["GRACY_DEBUG"]
+    if no_webui:
+        os.environ["GRACY_NO_WEBUI"] = "1"
+    elif "GRACY_NO_WEBUI" in os.environ:
+        del os.environ["GRACY_NO_WEBUI"]
 
-        # 配置文件路径由 config_manager 自动查找（向上找项目根目录）
-
-
-        if debug:
-            os.environ["GRACY_DEBUG"] = "1"
-        elif "GRACY_DEBUG" in os.environ:
-            del os.environ["GRACY_DEBUG"]
-        if no_webui:
-            os.environ["GRACY_NO_WEBUI"] = "1"
-        elif "GRACY_NO_WEBUI" in os.environ:
-            del os.environ["GRACY_NO_WEBUI"]
-
-        print("  🚀 启动 GracyBot ...")
-        try:
-            asyncio.run(run_bot())
-        except KeyboardInterrupt:
-            print("\n  🛑 已停止")
-        except Exception as e:
-            print(f"  ❌ 启动失败: {e}")
-            sys.exit(1)
+    print("  🚀 启动 GracyBot ...")
+    try:
+        asyncio.run(run_bot())
+    except KeyboardInterrupt:
+        print("\n  🛑 已停止")
+    except Exception as e:
+        print(f"  ❌ 启动失败: {e}")
+        sys.exit(1)
 
 
 @gracy_cli.command("stop")
