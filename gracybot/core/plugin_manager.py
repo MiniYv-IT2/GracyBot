@@ -8,7 +8,7 @@ from typing import Dict, List, Callable, Optional, Set, Tuple
 import re
 from gracybot.core.utils import logger
 from gracybot.core.tools.validator import load_plugin_toml, TOMLPluginError
-from gracybot.core.tools.paths import get_disabled_plugins_path, get_res_config_dir, get_project_root
+from gracybot.core.tools.paths import get_plugins_dir, get_disabled_plugins_path, get_res_config_dir, get_project_root, get_user_plugins_dir
 from gracybot.core.decorators.registration import (
     DECORATOR_COMMAND_REGISTRY,
     FALLBACK_HANDLERS,
@@ -151,8 +151,8 @@ class PluginManager:
 
     # ── 初始化入口 ──
 
-    def init(self, plugin_dir: str = "./plugins") -> None:
-        """初始化：扫描 → 加载 → 合并装饰器
+    def init(self) -> None:
+        """初始化：扫描系统插件 + 用户插件 → 加载 → 合并装饰器
         元数据来自 metadata.toml（主通道）+ @on_command 装饰器（副通道）
         """
         if self._initialized:
@@ -164,11 +164,19 @@ class PluginManager:
         self._ready_hooks.clear()
         clear_registry()
 
-        abs_plugin_dir = os.path.abspath(plugin_dir)
-        logger.info(f"📌 开始扫描插件目录（绝对路径）：{abs_plugin_dir}")
+        sys_plugin_dir = os.path.abspath(get_plugins_dir())
+        user_plugin_dir = os.path.abspath(get_user_plugins_dir())
 
-        # 第一阶段：扫描 metadata
-        plugins_meta = self._scan_plugins_metadata(plugin_dir)
+        os.makedirs(user_plugin_dir, exist_ok=True)
+
+        plugins_meta = {}
+
+        sys_meta = self._scan_plugins_metadata(sys_plugin_dir)
+        user_meta = self._scan_plugins_metadata(user_plugin_dir)
+
+        # 用户插件覆盖同名系统插件
+        plugins_meta.update(sys_meta)
+        plugins_meta.update(user_meta)
 
         # 循环依赖检测
         self._visited.clear()
@@ -179,7 +187,7 @@ class PluginManager:
                     return
 
         # 第二阶段：按依赖顺序加载
-        self._load_plugins_by_dependency(plugins_meta, plugin_dir)
+        self._load_plugins_by_dependency(plugins_meta)
 
         # 第三阶段：合并装饰器注册 + 按 priority 排序
         self._merge_decorator_registry()
@@ -235,7 +243,7 @@ class PluginManager:
 
     # ── 第二阶段：按依赖顺序加载 ──
 
-    def _load_plugins_by_dependency(self, plugins_meta: Dict[str, Dict], plugin_dir: str) -> None:
+    def _load_plugins_by_dependency(self, plugins_meta: Dict[str, Dict]) -> None:
         """按依赖顺序加载每个插件的核心模块"""
         loaded = set()
 
@@ -437,7 +445,7 @@ class PluginManager:
             self._versions.pop(plugin_name, None)
             logger.info(f"🔄 开始重载插件 {plugin_name}")
             self._initialized = False
-            self.init(os.path.dirname(plugin_path))
+            self.init()
             logger.info(f"✅ 插件 {plugin_name} 重载完成")
             return True
         except Exception as e:
@@ -482,15 +490,7 @@ class PluginManager:
                     with open(res_cfg, "r", encoding="utf-8") as f:
                         user_cfg = json.load(f)
                 else:
-                    # 迁移：从旧路径 res/config/ 复制
-                    old_cfg = os.path.join(get_project_root(), "res", "config", f"{plugin_name}_config.json")
-                    if os.path.exists(old_cfg):
-                        os.makedirs(res_dir, exist_ok=True)
-                        shutil.copy2(old_cfg, res_cfg)
-                        with open(res_cfg, "r", encoding="utf-8") as f:
-                            user_cfg = json.load(f)
-                    else:
-                        user_cfg = None
+                    user_cfg = None
 
                 if user_cfg is not None:
                     # deep_merge: default 做基底，user_cfg 覆盖其上，新增字段自动补默认值

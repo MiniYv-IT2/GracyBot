@@ -25,10 +25,8 @@ from gracybot.core.gracy_adapter.identity import IdentityTag
 from gracybot.core.gracy_adapter.pool import adapter_pool
 
 try:
-    from res.styling import encrypt_user_id
+    from gracybot.res.styling import encrypt_user_id
 except ImportError:
-    import sys as _sys, os as _os
-    _sys.path.append(_os.path.join(_os.path.dirname(_os.path.abspath(__file__)), "..", "..", "..", "res"))
     from res.styling import encrypt_user_id
 
 _logger = logging.getLogger("Adapter.Send")

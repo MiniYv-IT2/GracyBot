@@ -38,9 +38,7 @@ CARD_WIDTH = 700  # 卡片宽度
 CARD_TOP_PADDING = 20  # 卡片顶部内边距
 
 # 字体路径（使用SysInfo插件的字体）
-# 共享资源路径（gracybot/res/resource/）
-_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
-_RES = os.path.join(_ROOT, "res", "resource")
+_RES = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))), "res", "resource")
 FONT_PATH = os.path.join(_RES, "DouyinSansBold.otf")
 ROBOT_LOGO_PATH = os.path.join(_RES, "gracybot_logo.png")
 

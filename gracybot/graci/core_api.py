@@ -33,6 +33,9 @@ from gracybot.core.tools.paths import get_logs_dir
 from gracybot.core.tools.paths import get_storage_dir
 from gracybot.core.tools.paths import get_res_config_dir
 
+# ── 数据库 ──
+from gracybot.core.db_manager import get_db
+
 # ── 监控 ──
 from gracybot.core.monitor import monitor_manager
 

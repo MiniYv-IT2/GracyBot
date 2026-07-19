@@ -27,7 +27,6 @@ if _sp and _sp not in sys.path:
 import numpy as np
 from PIL import Image, ImageDraw, ImageFont
 
-# GracyBot 根路径 → res/resource/
 _ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 _RES = os.path.join(_ROOT, "res", "resource")
 

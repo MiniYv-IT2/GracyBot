@@ -2,16 +2,16 @@
 graci — GracyBot 插件公共 API 包
 
 用法:
-    from gracybot.graci import GracyText, GracyImage
-    from gracybot.graci import on_command, plugin_handler
-    from gracybot.graci import PluginContext
+    from graci import GracyText, GracyImage
+    from graci import on_command, plugin_handler
+    from graci import PluginContext
 """
 
-from gracybot.graci.messages import (
+from .messages import (
     GracyText, GracyImage, GracyVoice, GracyAt,
     GracyReply, GracyMsg, GracyFile, GracyVideo, GracyForward,
 )
-from gracybot.graci.decorators import (
+from .decorators import (
     on_command, on_regex, on_keyword,
     gracy_plugin, plugin_handler,
     require_permission, require_master,
@@ -20,8 +20,8 @@ from gracybot.graci.decorators import (
     with_logger, log_attrs,
     on_fallback, DECORATOR_COMMAND_REGISTRY,
 )
-from gracybot.graci.context import PluginContext
-from gracybot.graci.core_api import (
+from .context import PluginContext
+from .core_api import (
     gracy_send_msg, gracy_call_api, gracy_get_platform_info,
     BOT_VERSION, MASTER_ID, ROBOT_ID, ROBOT_START_TIME, LOG_ENCODING,
     get_current_master_id, get_current_robot_id,
@@ -32,6 +32,7 @@ from gracybot.graci.core_api import (
     register_cli_command,
     Quart, send_from_directory, Blueprint, request, Config, serve,
     Stage, RuntimeRegistry, GracyEvent, IdentityTag,
+    get_db,
 )
 
 __all__ = [
@@ -53,6 +54,8 @@ __all__ = [
     "plugin_manager", "config_manager", "logger", "get_logger", "with_logger", "log_attrs",
     # 路径工具
     "get_logs_dir", "get_storage_dir", "get_res_config_dir",
+    # 数据库
+    "get_db",
     # 安全 / 监控
     "sanitize_log", "monitor_manager",
     # CLI

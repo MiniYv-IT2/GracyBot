@@ -41,6 +41,11 @@ def get_plugins_dir() -> str:
 
 
 @functools.lru_cache(maxsize=1)
+def get_user_plugins_dir() -> str:
+    return os.path.join(get_storage_dir(), "plugins")
+
+
+@functools.lru_cache(maxsize=1)
 def get_instances_dir() -> str:
     return os.path.join(get_storage_dir(), "instances")
 
@@ -65,12 +70,23 @@ def get_logs_dir() -> str:
     return os.path.join(get_storage_dir(), "logs")
 
 
+@functools.lru_cache(maxsize=1)
+def get_data_dir() -> str:
+    return os.path.join(get_storage_dir(), "data")
+
+
+def get_db_path(plugin_name: str) -> str:
+    return os.path.join(get_data_dir(), f"{plugin_name}.db")
+
+
 def invalidate_cache() -> None:
     get_project_root.cache_clear()
     get_storage_dir.cache_clear()
     get_plugins_dir.cache_clear()
+    get_user_plugins_dir.cache_clear()
     get_instances_dir.cache_clear()
     get_config_path.cache_clear()
     get_disabled_plugins_path.cache_clear()
     get_res_config_dir.cache_clear()
     get_logs_dir.cache_clear()
+    get_data_dir.cache_clear()

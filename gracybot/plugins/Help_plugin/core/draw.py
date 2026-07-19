@@ -13,9 +13,7 @@ logger = get_logger("Help.draw")
 
 class GracyBotHelpDrawer:
     # ---------------- 常量区 ----------------
-    # 共享资源路径（gracybot/res/resource/）
-    _ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
-    _RES = os.path.join(_ROOT, "res", "resource")
+    _RES = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))), "res", "resource")
     FONT_PATH_REGULAR = os.path.join(_RES, "DouyinSansBold.otf")
     FONT_PATH_BOLD = FONT_PATH_REGULAR
     LOGO_PATH = os.path.join(_RES, "gracybot_logo.png")

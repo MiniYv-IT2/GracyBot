@@ -3,7 +3,7 @@ from PIL import Image, ImageDraw, ImageFont
 
 PLUGIN_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CACHE_DIR = os.path.join(PLUGIN_DIR, "data")
-FONT_PATH = os.path.join(PLUGIN_DIR, "..", "..", "res", "resource", "DouyinSansBold.otf")
+FONT_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))), "res", "resource", "DouyinSansBold.otf")
 
 PHONE_W = 390
 PHONE_H = 844

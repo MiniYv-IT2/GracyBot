@@ -38,11 +38,11 @@ dependencies = [
     "psutil>=5.9.0",
     "py-cpuinfo>=9.0.0",
     "mss>=9.0.0",
+    "aiosqlite>=0.20.0",
 ]
 
 [project.optional-dependencies]
 llm = [
-    "aiosqlite>=0.20.0",
 ]
 search = [
     "playwright>=1.40.0",
@@ -60,14 +60,14 @@ gracybot = "gracybot.core.tools.cli.main:app"
 gracy = "gracybot.core.tools.cli.main:app"
 
 [tool.setuptools.packages.find]
-include = ["gracybot*", "res*"]
+include = ["gracybot*"]
 
 [tool.setuptools]
 include-package-data = false
 
 [tool.setuptools.package-data]
 "gracybot.core" = ["*.json", "*.toml"]
-"res" = ["*.py", "*.png", "*.otf", "**/*.json"]
+"gracybot.res" = ["*.py", "resource/*", "resource/**/*"]
 "gracybot.plugins.Easysearch" = ["*.toml"]
 "gracybot.plugins.Help_plugin" = ["*.toml"]
 "gracybot.plugins.LLM_Chat" = ["*.toml", "*.json"]

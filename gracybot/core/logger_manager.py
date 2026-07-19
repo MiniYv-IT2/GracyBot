@@ -14,21 +14,25 @@ from gracybot.core.tools.paths import get_project_root, get_logs_dir
 
 project_root = get_project_root()
 sys.path.insert(0, project_root)
-sys.path.append(os.path.join(project_root, 'res'))
+try:
+    from gracybot.res.log_colors import colorize_level, colorize_message, supports_color
+except ImportError:
+    try:
+        from res.log_colors import colorize_level, colorize_message, supports_color
+    except ImportError:
+        def colorize_level(level_name): return level_name
+        def colorize_message(message, level='INFO'): return message
+        def supports_color(): return False
 
 try:
-    from res.log_colors import colorize_level, colorize_message, supports_color
+    from gracybot.res.styling import format_context_to_chinese, format_message_to_chinese, encrypt_user_id
 except ImportError:
-    def colorize_level(level_name): return level_name
-    def colorize_message(message, level='INFO'): return message
-    def supports_color(): return False
-
-try:
-    from res.styling import format_context_to_chinese, format_message_to_chinese, encrypt_user_id
-except ImportError:
-    def format_context_to_chinese(context_data): return str(context_data)
-    def format_message_to_chinese(message): return str(message)
-    def encrypt_user_id(user_id): return str(user_id)
+    try:
+        from res.styling import format_context_to_chinese, format_message_to_chinese, encrypt_user_id
+    except ImportError:
+        def format_context_to_chinese(context_data): return str(context_data)
+        def format_message_to_chinese(message): return str(message)
+        def encrypt_user_id(user_id): return str(user_id)
 
 LOG_DIR = get_logs_dir()
 

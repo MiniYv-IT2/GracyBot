@@ -25,9 +25,7 @@ PLUGIN_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DATA_DIR = os.path.join(PLUGIN_DIR, "data")
 BACKGROUND_DIR = os.path.join(DATA_DIR, "background")
 
-# 共享字体资源
-_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
-_RES = os.path.join(_ROOT, "res", "resource")
+_RES = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))), "res", "resource")
 FONT_PATH = os.path.join(_RES, "DouyinSansBold.otf")
 _DEFAULT_FONT = os.path.join(_RES, "DouyinSansBold.otf")
 
