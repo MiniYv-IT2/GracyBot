@@ -1,0 +1,20 @@
+name: Sync to Gitee
+
+on:
+  push:
+    branches: [ "v2.0", "main" ]
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Push to Gitee
+        run: |
+          remote_url="https://MiniYv-IT2:${{ secrets.GITEE_TOKEN }}@gitee.com/MiniYv/GracyBot.git"
+          git remote add gitee "$remote_url"
+          git push gitee --all --force
+          git push gitee --tags --force
