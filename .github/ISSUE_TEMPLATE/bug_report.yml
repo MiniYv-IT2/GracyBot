@@ -1,0 +1,46 @@
+name: Bug 报告
+description: 报告框架或插件的异常行为
+labels: ["🐛 bug"]
+body:
+  - type: input
+    id: version
+    attributes:
+      label: GracyBot 版本
+      placeholder: v2.0.0
+    validations:
+      required: true
+
+  - type: dropdown
+    id: deploy
+    attributes:
+      label: 部署方式
+      options:
+        - pip 安装
+        - 本地源码运行
+        - Docker
+    validations:
+      required: true
+
+  - type: dropdown
+    id: platform
+    attributes:
+      label: 适配器
+      options:
+        - OneBot
+        - Satori
+        - QQ Official
+        - 其他
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: 复现步骤
+      placeholder: 1. 执行 ... 2. 触发 ... 3. 看到错误
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: 相关日志
+      render: shell
