@@ -331,8 +331,8 @@ class Pipeline:
 
     async def process(self, event: GracyEvent) -> Optional[PluginContext]:
         """处理事件，遍历洋葱模型各层，返回最终上下文"""
-        if getattr(event, "event_type", "") != "message":
-            _logger.debug("[Pipeline] 非消息事件，跳过 Pipeline 处理")
+        if not event.segments and not event.raw_text:
+            _logger.debug("[Pipeline] 空消息事件，跳过 Pipeline 处理")
             return None
 
         await self._ensure_initialized()
