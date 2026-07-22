@@ -64,6 +64,11 @@ class AuthMixin:
                     if resp.status == 200:
                         data = await resp.json()
                         self._access_token = data.get("access_token")
+                        if not self._access_token:
+                            err_msg = data.get("message", "未知错误")
+                            _logger.error(f"获取 Token 失败: {data.get('code', '?')} {err_msg}")
+                            _logger.error(f"     可能原因：app_id/secret 错误，或服务器 IP 未加入白名单")
+                            return None
                         expires_in = int(data.get("expires_in", 7200))
                         self._token_expires_at = now + expires_in
                         _logger.info(f"Access Token 获取成功，有效期 {expires_in}s")
