@@ -4,6 +4,7 @@ import sys
 import shutil
 import subprocess
 from pathlib import Path
+from typing import Optional
 from gracybot.core.tools.paths import get_project_root, get_plugins_dir, get_config_path
 
 
