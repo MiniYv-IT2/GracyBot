@@ -71,7 +71,7 @@ class QQOfficialAdapter(GracyAdapter):
 
         self._platform_info_cache: Optional[dict] = None
         self._platform_info_cache_time: float = 0
-        self._binding = MasterBinding(config_path, runtime=None)
+        self._binding = MasterBinding(config_path)
 
         # 被动回复状态
         self._last_msg_id: str = ""
@@ -80,6 +80,7 @@ class QQOfficialAdapter(GracyAdapter):
     # ── 生命周期 ──
 
     def start(self, on_event: Callable[[GracyEvent], None]) -> None:
+        self._binding._runtime = self._runtime
         self._binding.load_state()
 
         def wrapped_event(event: GracyEvent) -> None:
