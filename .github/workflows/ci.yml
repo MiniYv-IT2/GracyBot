@@ -20,8 +20,8 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
 
-      - run: pip install aiosqlite
+      - run: pip install aiosqlite build
 
-      - run: python -m compileall gracybot/ graci/ -q
+      - run: python -m compileall gracybot/ -q
 
       - run: python -m build --wheel
