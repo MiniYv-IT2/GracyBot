@@ -253,7 +253,7 @@ async def run_bot():
 
     try:
         from gracybot.res.gracybot_logo import GracyBotLogo
-        GracyBotLogo(force_color=True).print_logo()
+        GracyBotLogo().print_logo()
     except Exception:
         pass
 

@@ -1,6 +1,7 @@
 """GracyBot 插件管理器 — 负责扫描、加载、注册、匹配、重载"""
 
 import os
+import sys
 import json
 import shutil
 import importlib.util
@@ -264,12 +265,22 @@ class PluginManager:
                 return False
             try:
                 plugin_path = meta["plugin_path"]
-                core_file = f"{plugin_name}.py"
+                core_file = "main.py"
                 core_path = os.path.join(plugin_path, core_file)
                 if not os.path.exists(core_path):
-                    logger.error(f"❌ 插件 {plugin_name} 缺失核心文件 {core_file}，跳过加载")
-                    return False
+                    core_file = f"{plugin_name}.py"
+                    core_path = os.path.join(plugin_path, core_file)
+                    if not os.path.exists(core_path):
+                        logger.error(f"❌ 插件 {plugin_name} 缺失核心文件 main.py 或 {core_file}，跳过加载")
+                        return False
                 mod_name = f"gracybot.plugins.{plugin_name}.{core_file[:-3]}"
+                parent_name = f"gracybot.plugins.{plugin_name}"
+                if parent_name not in sys.modules:
+                    parent_pkg = importlib.util.module_from_spec(
+                        importlib.machinery.ModuleSpec(parent_name, None, is_package=True)
+                    )
+                    parent_pkg.__path__ = [plugin_path]
+                    sys.modules[parent_name] = parent_pkg
                 spec = importlib.util.spec_from_file_location(name=mod_name, location=core_path)
                 module = importlib.util.module_from_spec(spec)
                 spec.loader.exec_module(module)

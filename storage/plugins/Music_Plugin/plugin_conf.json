@@ -1,0 +1,28 @@
+{
+    "apikey": {
+        "type": "str",
+        "default": "",
+        "description": "API Key",
+        "secret": true
+    },
+    "api_url": {
+        "type": "str",
+        "default": "https://api.nycnm.cn/api/v2/diange",
+        "description": "API 地址"
+    },
+    "timeout": {
+        "type": "int",
+        "default": 10,
+        "description": "请求超时"
+    },
+    "page_size": {
+        "type": "int",
+        "default": 10,
+        "description": "每页数量"
+    },
+    "cache_max_days": {
+        "type": "int",
+        "default": 7,
+        "description": "缓存天数"
+    }
+}

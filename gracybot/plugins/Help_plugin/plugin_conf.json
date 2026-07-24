@@ -1,0 +1,18 @@
+{
+    "show_builtin_cmds": {
+        "type": "bool",
+        "default": false,
+        "description": "显示内置插件命令"
+    },
+    "custom_cmds": {
+        "type": "list",
+        "default": [],
+        "description": "自定义额外命令",
+        "hint": "格式为\"命令: 描述\"，逗号或#分隔"
+    },
+    "plugin_blacklist": {
+        "type": "list",
+        "default": [],
+        "description": "插件黑名单"
+    }
+}

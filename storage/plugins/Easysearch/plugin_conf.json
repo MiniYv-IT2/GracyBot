@@ -1,0 +1,17 @@
+{
+    "default_engine": {
+        "type": "str",
+        "default": "bing",
+        "description": "默认搜索引擎"
+    },
+    "timeout": {
+        "type": "int",
+        "default": 20,
+        "description": "请求超时"
+    },
+    "proxy": {
+        "type": "str",
+        "default": "",
+        "description": "代理地址"
+    }
+}

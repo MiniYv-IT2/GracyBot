@@ -1,0 +1,19 @@
+[plugin]
+name        = "配置测试插件"
+version     = "1.0.0"
+author      = "GracyBot"
+description = "测试插件配置管理系统的合并与迁移功能"
+priority    = 50
+
+[handler]
+entry       = "handle_config"
+
+[trigger]
+commands       = ["/config", "/config_set"]
+chat_type      = ["private", "group"]
+permission     = "all"
+is_at_required = false
+
+[trigger.command_descriptions]
+"/config"     = "查看当前插件配置"
+"/config_set" = "修改插件配置: /config_set <键> <值>"

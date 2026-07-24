@@ -117,6 +117,8 @@ class QQOfficialGateway:
                         data = json.loads(msg.data)
                         _dbg("ws_json", op=data.get("op"), t=data.get("t"))
                         await self._handle_message(data)
+                    except ConnectionError:
+                        raise
                     except Exception as e:
                         _logger.error(f"处理消息异常: {e}")
                 elif msg.type == aiohttp.WSMsgType.CLOSED:

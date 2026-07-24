@@ -15,11 +15,9 @@ sys._called_from_cli = True  # 标记 CLI 入口，让 logger_manager 跳过 chc
 import typer
 
 from .plugins import (
-    register_cli_command as _register_plugin_cmd,
     list_plugins,
     install_plugin,
     remove_plugin,
-    _PLUGIN_CLI_COMMANDS,
 )
 from .system import (
     setup_autostart,
@@ -398,38 +396,6 @@ def cmd_info():
     typer.echo(f"  当前目录: {Path.cwd()}")
     root = find_project_root()
     typer.echo(f"  项目根目录: {root or '未找到（pip 模式）'}")
-
-
-# ═══════════════════════════ 第三方插件命令注入 ═══════════════════════════
-
-
-def register_cli_command(name: str, handler, help_text: str = ""):
-    """注册第三方插件 CLI 子命令
-
-    在插件模块导入时调用此函数，即可在 gracybot <name> 中执行。
-    """
-    _register_plugin_cmd(name, handler, help_text)
-
-    # 动态注入到 gracy_cli
-    import functools
-
-    @gracy_cli.command(name=name, help=help_text or handler.__doc__)
-    def plugin_cmd():
-        handler()
-
-    # 保留原始名字便于后续查找
-    plugin_cmd.__orig_name__ = name
-    return plugin_cmd
-
-
-# 应用已注册的插件命令
-def _apply_plugin_commands():
-    for name, info in _PLUGIN_CLI_COMMANDS.items():
-        if name not in [c.name for c in gracy_cli.registered_commands]:
-            register_cli_command(name, info["handler"], info["help"])
-
-
-_apply_plugin_commands()
 
 
 # ── 直接运行入口 ──

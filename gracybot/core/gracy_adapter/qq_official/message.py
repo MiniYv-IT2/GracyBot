@@ -73,9 +73,6 @@ class MessageMixin:
             async with session.post(url, json=payload, headers=headers) as resp:
                 if resp.status == 200:
                     return True
-                error_body = await resp.text()
-                _logger.error(f"发送消息失败: {resp.status} {error_body}")
                 return False
-        except Exception as e:
-            _logger.error(f"发送消息异常: {e}")
+        except Exception:
             return False

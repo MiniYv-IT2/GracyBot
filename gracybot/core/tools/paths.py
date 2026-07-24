@@ -79,6 +79,18 @@ def get_db_path(plugin_name: str) -> str:
     return os.path.join(get_data_dir(), f"{plugin_name}.db")
 
 
+def get_plugin_config_global_dir() -> str:
+    return os.path.join(get_storage_dir(), "config")
+
+
+def get_plugin_config_instance_dir(instance_name: str) -> str:
+    return os.path.join(get_instances_dir(), instance_name, "plugins")
+
+
+def get_res_dir() -> str:
+    return os.path.join(get_project_root(), "gracybot", "res", "resource")
+
+
 def invalidate_cache() -> None:
     get_project_root.cache_clear()
     get_storage_dir.cache_clear()
@@ -90,3 +102,4 @@ def invalidate_cache() -> None:
     get_res_config_dir.cache_clear()
     get_logs_dir.cache_clear()
     get_data_dir.cache_clear()
+    get_plugin_config_global_dir.cache_clear()

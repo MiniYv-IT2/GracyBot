@@ -88,9 +88,6 @@ class MediaMixin:
                     data = await resp.json()
                     _logger.info(f"{log_prefix}富媒体上传成功")
                     return data.get("file_info")
-                error_body = await resp.text()
-                _logger.error(f"{log_prefix}富媒体上传失败: {resp.status} {error_body}")
                 return None
-        except Exception as e:
-            _logger.error(f"{log_prefix}富媒体上传异常: {e}")
+        except Exception:
             return None

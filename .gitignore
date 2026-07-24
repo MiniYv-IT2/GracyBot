@@ -1,5 +1,9 @@
 # ─── 运行数据目录（配置/实例/日志/插件数据） ───
-storage/
+storage/logs/
+storage/config/
+storage/instances/
+storage/data/
+storage/__pycache__/
 
 # ─── 保留模板 ───
 !config.template.json
@@ -9,8 +13,8 @@ __pycache__/
 *.py[cod]
 *.so
 *.egg-info/
-dist/
-build/
+/dist/
+/build/
 
 # ─── 虚拟环境 ───
 .venv/

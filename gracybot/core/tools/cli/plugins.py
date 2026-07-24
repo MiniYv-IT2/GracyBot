@@ -8,23 +8,6 @@ from typing import Callable, Optional
 
 from .utils import find_project_root, find_plugins_dir, pip_install
 
-# ── 第三方插件 CLI 注册表 ──
-_PLUGIN_CLI_COMMANDS: dict[str, dict] = {}
-
-
-def register_cli_command(name: str, handler: Callable, help_text: str = ""):
-    """供插件调用的 CLI 命令注册接口
-
-    Args:
-        name: 子命令名（如 "my-plugin"）
-        handler: 回调函数
-        help_text: 帮助说明
-    """
-    _PLUGIN_CLI_COMMANDS[name] = {
-        "handler": handler,
-        "help": help_text or (handler.__doc__ or "").strip(),
-    }
-
 
 def list_plugins(root: Path) -> list[dict]:
     """扫描 plugins/ 下所有有效的插件目录"""

@@ -9,6 +9,7 @@ import time
 from typing import Optional
 
 import aiohttp
+from aiohttp import ClientTimeout
 
 _logger = logging.getLogger("Adapter.QQOfficial.auth")
 
@@ -31,17 +32,26 @@ class AuthMixin:
         self._access_token: Optional[str] = None
         self._token_expires_at: float = 0
         self._session: Optional[aiohttp.ClientSession] = None
+        self._session_loop_id: Optional[int] = None
         self._token_lock = asyncio.Lock()
 
     async def _get_session(self) -> aiohttp.ClientSession:
-        if self._session is None or self._session.closed:
-            self._session = aiohttp.ClientSession()
+        loop = asyncio.get_running_loop()
+        loop_id = id(loop)
+        if self._session is None or self._session.closed or self._session_loop_id != loop_id:
+            if self._session and not self._session.closed:
+                await self._session.close()
+            self._session = aiohttp.ClientSession(
+                timeout=ClientTimeout(total=None)
+            )
+            self._session_loop_id = loop_id
         return self._session
 
     async def close(self):
         if self._session and not self._session.closed:
             await self._session.close()
-            self._session = None
+        self._session = None
+        self._session_loop_id = None
 
     async def get_access_token(self) -> Optional[str]:
         """获取 Access Token（带缓存 + 锁，避免并发重复请求）"""
@@ -50,7 +60,6 @@ class AuthMixin:
             return self._access_token
 
         async with self._token_lock:
-            # 拿到锁后再次检查（可能别的协程已经刷新完了）
             now = time.time()
             if self._access_token and now < self._token_expires_at - 300:
                 return self._access_token

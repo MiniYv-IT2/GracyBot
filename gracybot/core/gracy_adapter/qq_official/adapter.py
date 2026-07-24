@@ -118,6 +118,7 @@ class QQOfficialAdapter(GracyAdapter):
                 loop.create_task(self._gateway.stop())
             except RuntimeError:
                 _logger.warning("停止 Gateway 失败: 无运行中的事件循环")
+
         try:
             loop = asyncio.get_event_loop()
             loop.create_task(self._api.close())

@@ -1,0 +1,70 @@
+{
+    "api_key": {
+        "type": "str",
+        "default": "",
+        "description": "API Key",
+        "secret": true
+    },
+    "model": {
+        "type": "str",
+        "default": "glm-4.7-flash",
+        "description": "模型名"
+    },
+    "api_base": {
+        "type": "str",
+        "default": "https://open.bigmodel.cn/api/paas/v4/",
+        "description": "API 地址"
+    },
+    "vision_model": {
+        "type": "str",
+        "default": "",
+        "description": "视觉模型名"
+    },
+    "vision_api_key": {
+        "type": "str",
+        "default": "",
+        "description": "视觉模型 API Key",
+        "secret": true
+    },
+    "vision_api_base": {
+        "type": "str",
+        "default": "",
+        "description": "视觉模型 API 地址"
+    },
+    "vision_enabled": {
+        "type": "bool",
+        "default": true,
+        "description": "启用视觉"
+    },
+    "max_context": {
+        "type": "int",
+        "default": 50,
+        "description": "最大上下文轮数"
+    },
+    "default_persona": {
+        "type": "str",
+        "default": "",
+        "description": "默认人设"
+    },
+    "poke_enabled": {
+        "type": "bool",
+        "default": true,
+        "description": "启用戳一戳"
+    },
+    "poke_ai_reply": {
+        "type": "bool",
+        "default": true,
+        "description": "戳一戳 AI 回复"
+    },
+    "poke_back": {
+        "type": "bool",
+        "default": true,
+        "description": "回戳"
+    },
+    "tavily_api_key": {
+        "type": "str",
+        "default": "",
+        "description": "Tavily 搜索 API Key",
+        "secret": true
+    }
+}

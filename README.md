@@ -9,11 +9,11 @@
   <img src="https://img.shields.io/badge/Platform-Windows%20|%20Linux%20|%20macOS-lightgrey" alt="Platform" />
   <img src="https://img.shields.io/badge/Status-Active-brightgreen" alt="Status" />
   <img src="https://img.shields.io/badge/License-MIT-green" alt="License" />
-  <img src="https://img.shields.io/badge/Version-v2.0.0test-orange" alt="Version" />
+  <img src="https://img.shields.io/badge/Version-v2.0.0.dev0-blue" alt="Version" />
 </p>
 
 <p align="center">
-  <strong>中文</strong> | <a href="README_EN.md">English</a>
+  <strong>中文</strong>
 </p>
 
 > 想给自己的 QQ 搞个智能机器人？GracyBot 就是为此而生的。基于 **Python 3.11+** 的个性化定制 QQ 机器人框架，支持 **NapCat (OneBot)** 与 **QQ 官方个人机器人 API** 双协议，主打安全稳定、插件化扩展与便捷更新。
@@ -49,7 +49,31 @@
 
 ## 更新变化
 
-### v1.9.54 (2026-06-21)
+### v2.0.0.dev0 (2026-07-24)
+
+#### 🏗️ 项目重构 — 命名空间包
+- 扁平结构 → 命名空间包 `gracybot/`，`pip install gracybot` 即可安装
+- 外观 API 层 `graci/` 拆分为 `_types/` `_plugin/` `_api/` 子包，插件 `from graci import xxx` 不变
+- 插件入口标准化为 `main.py`（兼容旧 `{文件夹名}.py`）
+
+#### ⚙️ 插件配置管理（新系统）
+- 新增 `config_manager.register_plugin_config()` / `get_plugin()` / `update_plugin()` 统一配置 API
+- 插件目录下放置 `plugin_conf.json` 定义默认值，自动迁移新增字段到用户配置
+- 配置分层：schema 默认值 < `storage/config/{name}/config.json`（全局）< `instances/{name}/plugins/`（实例级覆盖）
+
+#### 🔧 核心修复
+- **QQ Official 适配器**: 修复 ConnectionError 被吞导致 opcode 7 重连不触发；修复 aiohttp TimerContext loop 缓存 Bug
+- **Session 管理**: 不再缓存 aiohttp 会话，改为按 event loop 一致性重建
+- **磁盘统计**: 按物理设备去重，避免 WSL 下同盘多挂载点重复累加
+
+#### 🧹 清理与废弃
+- 移除 `register_cli_command()` 公共 API（第三方插件禁用 CLI 注册）
+- 移除 `gracybot_logo.py` 死代码（TerminalAdapter、紧凑模式、小写字母定义、CLI 入口）
+- 统一配置文件目录到 `storage/config/{name}/config.json`
+
+#### 📁 插件目录调整
+- 系统插件保留在 `gracybot/plugins/`，多数用户插件迁移到 `storage/plugins/`
+- 插件所有图片资源路径通过 `from graci import get_res_dir` 获取，适配任意目录位置
 
 #### 🚀 QQ 官方个人机器人适配器（重大更新）
 新增 `qq_official` 适配器，支持 QQ 官方个人机器人 API v2（WebSocket Gateway），无需 NapCat 即可运行。
@@ -143,58 +167,23 @@
 ## 项目结构
 
 ```
-gracybot/
 ├── bot.py                       # 程序入口
-├── graci.py                     # 兼容层：转发到 gracybot.graci（旧插件兼容）
-├── config.json                  # 全局机器人配置
-├── requirements.txt             # 依赖清单
+├── pyproject.toml               # 项目元数据 & 构建
 │
-├── gracybot/                    # 顶级包（命名空间）
-│   ├── __init__.py              # 包初始化
-│   ├── graci/                   # 插件公共 API 包
-│   │   ├── __init__.py          # 统一导出
-│   │   ├── messages.py          # GracyText, GracyImage 等
-│   │   ├── decorators.py        # on_command, plugin_handler 等
-│   │   ├── context.py           # PluginContext
-│   │   └── core_api.py          # 发送函数、配置、服务等
-│   │
+├── gracybot/                    # 顶级包
+│   ├── graci/                   # 插件公共 API
 │   ├── core/                    # 核心框架
-│   │   ├── __init__.py          # Core 类（延迟加载）
-│   │   ├── main.py              # 启动/关闭/心跳
-│   │   ├── plugin_manager.py    # 插件扫描/加载/注册
-│   │   ├── config.py            # 框架级配置常量
-│   │   ├── config_manager.py    # 集中化配置管理
-│   │   ├── security.py          # 安全工具
-│   │   ├── security_manager.py  # 安全管理器
-│   │   ├── monitor.py           # 系统监控
-│   │   ├── logger_manager.py    # 结构化日志管理
-│   │   ├── utils.py             # 工具函数
-│   │   ├── event/               # 事件总线
-│   │   ├── pipeline/            # 消息处理管道
-│   │   ├── runtime/             # Runtime（实例上下文）
-│   │   ├── decorators/          # 装饰器
-│   │   ├── webserv/             # Quart Web 服务
-│   │   ├── gracy_adapter/       # 多协议适配层
-│   │   │   ├── adapter.py       # 适配器抽象基类
-│   │   │   ├── event.py         # 统一事件模型
-│   │   │   ├── message.py       # 消息段类型
-│   │   │   ├── send.py          # 统一消息发送
-│   │   │   ├── onebot/          # OneBot 平台实现
-│   │   │   ├── qq_official/     # QQ 官方机器人
-│   │   │   └── satori/          # Satori 协议适配器
-│   │   └── tools/               # CLI、日志工具等
-│   │
-│   └── plugins/                 # 插件目录
+│   ├── plugins/                 # 系统插件
+│   └── res/                     # 资源文件
 │
-├── res/                         # 样式/资源
-│   ├── gracybot_logo.py         # 启动 Logo
-    ├── log_colors.py           # 日志配色
-    ├── styling.py              # 样式工具
-    └── instances/               # 多实例配置文件（每个 QQ 号一个目录）
-        ├── 主号/
-        │   └── config.json     # 实例配置：robot_id、master_id、http_url、callback_port
-        └── 小号/
-            └── config.json
+├── storage/                     # 运行时数据
+│   ├── config/                  # 插件配置
+│   ├── plugins/                 # 用户插件
+│   ├── instances/               # 多实例
+│   └── logs/                    # 日志
+│
+├── scripts/                     # 开发脚本
+└── docs/                        # 文档
 ```
 
 ---
@@ -262,7 +251,7 @@ is_at_required = false
 ```
 
 ```python
-from core.decorators.handler import plugin_handler
+from graci import plugin_handler
 
 @plugin_handler
 async def handle_my_plugin(ctx):
@@ -328,29 +317,6 @@ def handle_my_plugin(plugin_manager, send_msg, data, sender_id, chat_type, targe
 - **依赖**: Quart、aiohttp、psutil、Pillow、py-cpuinfo、rarfile
 
 > GracyAdapter 采用平台无关设计，OneBot 和 QQ 官方 API 是已实现的适配器。后续将陆续接入 Telegram Bot API、Discord、微信等更多平台，扩展至多端机器人生态。
-
----
-
-## 开发计划（Roadmap）
-
-| 状态 | 功能模块 | 说明 |
-|---|---|---|
-| 已完成 | 核心框架 & 插件系统 | 模块化架构、插件热重载、依赖管理、版本控制 |
-| 已完成 | GracyAdapter（OneBot） | HTTP 回调 + WS 正向/反向三种连接模式 |
-| 已完成 | 安全防护体系 | 日志脱敏、危险命令拦截、频率限制、权限分级、审计日志 |
-| 已完成 | LLM_Chat 插件 | 多人设切换、上下文记忆、定时任务、戳一戳互动 |
-| 已完成 | 监控与健康检查 | CPU/内存统计、响应时间追踪、`/health` 端点 |
-| 开发中 | GracyUI 管理面板完善 | 补充插件管理、日志中心、权限配置、实时消息流等模块 |
-| 开发中 | 插件商店（Plugin Store） | 在线浏览、搜索、一键安装/卸载第三方插件 |
-| 开发中 | GracyAdapter（多平台） | 接入 Telegram Bot API、Discord 等更多 IM 平台 |
-| 规划中 | 工作流引擎 | 可视化拖拽编排自动化消息处理流程 |
-| 规划中 | Docker 一键部署 | 提供官方镜像，`docker-compose up` 即可启动全套服务 |
-
----
-
-## 调试命令参考
-
-项目根目录下的 `debug_commands.txt` 整理了一份分平台（Linux/macOS 和 Windows）的调试命令示例，涵盖启动管理、日志查看、进程排查、消息模拟测试、健康检查等常用操作，希望能帮大家在遇到问题时快速定位。
 
 ---
 

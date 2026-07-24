@@ -4,7 +4,7 @@ import logging
 from pathlib import Path
 from typing import Dict, Any, Optional, TypeVar, Generic
 
-from gracybot.core.tools.paths import get_config_path
+from gracybot.core.tools.paths import get_config_path, get_plugin_config_global_dir, get_plugin_config_instance_dir, get_plugins_dir, get_user_plugins_dir
 
 CONFIG_FILE_PATH = None
 
@@ -64,6 +64,8 @@ class ConfigManager:
             cls._instance._initialized = False
             cls._instance._config_items = {}
             cls._instance._file_config = {}
+            cls._instance._plugin_schemas: dict[str, dict] = {}
+            cls._instance._plugin_config_cache: dict[str, tuple[dict, float]] = {}
             cls._instance._logger = logging.getLogger("Tool.Config")
         return cls._instance
     
@@ -342,6 +344,154 @@ class ConfigManager:
         except Exception as e:
             self._logger.error(f"❌ 保存配置文件失败: {str(e)}", exc_info=True)
             self._file_config = current_config
+
+
+    # ── 插件配置管理 ──────────────────────────────────────────
+
+    def register_plugin_config(self, plugin_name: str, schema: dict | None = None) -> dict:
+        """注册插件配置，返回配置字典
+
+        Args:
+            plugin_name: 插件名
+            schema: 可选。不传时自动查找 {plugin_dir}/plugin_conf.json 作为 schema
+        """
+        if schema is None:
+            schema = self._try_load_schema_file(plugin_name)
+        self._plugin_schemas[plugin_name] = schema
+        config = self._load_plugin_config(plugin_name)
+        self._plugin_config_cache[plugin_name] = (config, 0)
+        return config
+
+    def _try_load_schema_file(self, plugin_name: str) -> dict:
+        for base in (get_plugins_dir(), get_user_plugins_dir()):
+            path = os.path.join(base, plugin_name, "plugin_conf.json")
+            if os.path.exists(path):
+                try:
+                    with open(path, 'r', encoding='utf-8') as f:
+                        return json.load(f)
+                except Exception:
+                    pass
+        return {}
+
+    def _get_plugin_global_file(self, plugin_name: str) -> str:
+        return os.path.join(get_plugin_config_global_dir(), plugin_name, "config.json")
+
+    def _get_plugin_instance_file(self, plugin_name: str, instance_name: str) -> str:
+        return os.path.join(get_plugin_config_instance_dir(instance_name), plugin_name, "config.json")
+
+    def _schema_defaults(self, schema: dict) -> dict:
+        result = {}
+        for key, info in schema.items():
+            if info.get("type") == "object" and "items" in info:
+                result[key] = self._schema_defaults(info["items"])
+            else:
+                result[key] = info.get("default", None)
+        return result
+
+    def _load_json_file(self, filepath: str) -> dict:
+        try:
+            if os.path.exists(filepath):
+                with open(filepath, 'r', encoding='utf-8') as f:
+                    return json.load(f)
+        except Exception:
+            pass
+        return {}
+
+    def _get_runtime_instance_name(self) -> Optional[str]:
+        try:
+            from gracybot.core.runtime import RuntimeContext
+            runtime = RuntimeContext.get()
+            if runtime:
+                return runtime.instance_name
+        except Exception:
+            pass
+        return None
+
+    def _load_plugin_config(self, plugin_name: str, instance_name: Optional[str] = None) -> dict:
+        schema = self._plugin_schemas.get(plugin_name, {})
+        config = self._schema_defaults(schema)
+
+        global_file = self._get_plugin_global_file(plugin_name)
+        global_data = self._load_json_file(global_file)
+        merged_global = deep_merge_config(self._schema_defaults(schema), global_data)
+        if merged_global != global_data:
+            os.makedirs(os.path.dirname(global_file), exist_ok=True)
+            try:
+                with open(global_file, 'w', encoding='utf-8') as f:
+                    json.dump(merged_global, f, ensure_ascii=False, indent=2)
+                added = [k for k in merged_global if k not in global_data]
+                if added:
+                    self._logger.info(f"🔁 插件 {plugin_name} 配置自动迁移，新增字段: {added}")
+            except Exception:
+                pass
+            global_data = merged_global
+
+        config = deep_merge_config(config, merged_global)
+
+        inst_name = instance_name or self._get_runtime_instance_name()
+        if inst_name:
+            instance_file = self._get_plugin_instance_file(plugin_name, inst_name)
+            instance_data = self._load_json_file(instance_file)
+            if instance_data:
+                merged_inst = deep_merge_config(self._schema_defaults(schema), instance_data)
+                if merged_inst != instance_data:
+                    os.makedirs(os.path.dirname(instance_file), exist_ok=True)
+                    try:
+                        with open(instance_file, 'w', encoding='utf-8') as f:
+                            json.dump(merged_inst, f, ensure_ascii=False, indent=2)
+                    except Exception:
+                        pass
+                    instance_data = merged_inst
+                config = deep_merge_config(config, instance_data)
+
+        return config
+
+    def get_plugin(self, plugin_name: str, key: Optional[str] = None, default: Any = None) -> Any:
+        """获取插件配置
+
+        Args:
+            plugin_name: 插件名
+            key: 配置键名（None 时返回整个配置字典）
+            default: key 不存在时的默认值
+        """
+        schema = self._plugin_schemas.get(plugin_name)
+        if schema is None:
+            return default if key else {}
+
+        cached = self._plugin_config_cache.get(plugin_name)
+        config = cached[0] if cached else self._load_plugin_config(plugin_name)
+        if not cached:
+            self._plugin_config_cache[plugin_name] = (config, 0)
+
+        if key is None:
+            return config
+        return config.get(key, default)
+
+    def update_plugin(self, plugin_name: str, updates: dict, instance_name: Optional[str] = None) -> bool:
+        """更新插件配置（写入对应层级文件）
+
+        有 instance_name（或当前运行时上下文）→ 写入实例级
+        无 → 写入全局
+        """
+        inst_name = instance_name or self._get_runtime_instance_name()
+        if inst_name:
+            filepath = self._get_plugin_instance_file(plugin_name, inst_name)
+        else:
+            filepath = self._get_plugin_global_file(plugin_name)
+
+        existing = self._load_json_file(filepath)
+        merged = deep_merge_config(existing, updates)
+        os.makedirs(os.path.dirname(filepath), exist_ok=True)
+        try:
+            with open(filepath, 'w', encoding='utf-8') as f:
+                json.dump(merged, f, ensure_ascii=False, indent=2)
+            self._logger.info(f"✅ 插件配置已更新: {filepath}")
+            if plugin_name in self._plugin_config_cache:
+                del self._plugin_config_cache[plugin_name]
+            return True
+        except Exception as e:
+            self._logger.error(f"❌ 保存插件配置失败: {filepath}: {e}")
+            return False
 
 
 config_manager = ConfigManager()
