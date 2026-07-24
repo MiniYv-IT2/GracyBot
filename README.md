@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="res/resource/gracy.png" alt="GracyBot" width="200" />
+  <img src="gracybot/res/resource/gracy.png" alt="GracyBot" width="200" />
 </p>
 
 <h1 align="center">GracyBot</h1>
