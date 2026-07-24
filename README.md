@@ -82,6 +82,8 @@
 - 系统插件保留在 `gracybot/plugins/`，多数用户插件迁移到 `storage/plugins/`
 - 插件所有图片资源路径通过 `from graci import get_res_dir` 获取，适配任意目录位置
 
+### v1.9.54 (2026-06-21)
+
 #### 🚀 QQ 官方个人机器人适配器（重大更新）
 新增 `qq_official` 适配器，支持 QQ 官方个人机器人 API v2（WebSocket Gateway），无需 NapCat 即可运行。
 
