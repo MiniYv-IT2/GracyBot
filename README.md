@@ -5,6 +5,13 @@
 <h1 align="center">GracyBot</h1>
 
 <p align="center">
+  <strong>⚠️ 此项目进入维护模式，不再增加大量功能。</strong><br>
+  更多功能请使用迁移后的项目：
+  <a href="https://github.com/MiniYv-IT2/LoyanBot/"><strong>LoyanBot</strong></a>
+  — 一个更加完整、独立、开放的智能聊天机器人开发框架，以 GracyBot 为底座。
+</p>
+
+<p align="center">
   <img src="https://img.shields.io/badge/Python-3.11+-blue?logo=python&logoColor=white" alt="Python" />
   <img src="https://img.shields.io/badge/Platform-Windows%20|%20Linux%20|%20macOS-lightgrey" alt="Platform" />
   <img src="https://img.shields.io/badge/Status-Active-brightgreen" alt="Status" />
@@ -88,19 +95,6 @@
 | **OAuth2 鉴权** | 自动获取与续期 Access Token |
 | **富媒体上传** | 图片、语音的本地文件/base64 上传链路 |
 | **消息转换** | QQ 官方 Payload ↔ GracyEvent 双向转换 |
-
-#### 🎯 新增 Gracone 兼容层插件
-`Gracone_Plugin` — 让 NoneBot 插件可直接运行在 GracyBot 上。
-
-目前已适配的 NoneBot 插件：
-- **中国象棋**（cchess）— 人机对战，含 Stockfish 引擎
-- **Kawaii 状态图**（nonebot_plugin_kawaii_status）— 系统状态图生成
-
-#### 🧹 适配器代码优化
-- **统一日志命名**：`Gracy.QQPersonal` → `Gracy.QQOfficial`
-- **裁剪调试日志**：移除 media.py 冗余重试逻辑和文件大小日志
-- **删除硬编码**：Easysearch 等插件不再写死 Linux 路径 `/usr/bin/chromium`
-- **修复文字+图片组合发送**：`sender.py` 中 `content = ""` bug 导致图片上传后文字丢失
 
 ### v1.9.25 (2026-06-12)
 
